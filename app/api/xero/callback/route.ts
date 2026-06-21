@@ -3,11 +3,12 @@
 // and tenant ID against the logged-in user's client record in Supabase.
 
 import { NextRequest, NextResponse } from "next/server";
-import { xero } from "@/lib/xero";
+import { getXeroClient } from "@/lib/xero";
 import { createClient } from "@/lib/supabase/server"; // your existing Supabase server client helper
 
 export async function GET(req: NextRequest) {
   const supabase = createClient();
+  const xero = getXeroClient();
 
   const {
     data: { user },
