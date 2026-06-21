@@ -1,6 +1,3 @@
-// app/api/xero/connect/route.ts
-// Redirects the user to Xero's consent screen.
-
 import { NextResponse } from "next/server";
 import { getXeroClient } from "@/lib/xero";
 
