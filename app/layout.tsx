@@ -1,16 +1,9 @@
-export const metadata = {
-  title: "HospoMetrics",
-  description: "Hospitality reporting and forecasting",
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function Home() {
   return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
+    <main style={{ padding: 40, fontFamily: "sans-serif" }}>
+      <h1>HospoMetrics</h1>
+      <p>Hospitality reporting platform — under construction.</p>
+      <a href="/api/xero/connect">Connect to Xero</a>
+    </main>
   );
 }
