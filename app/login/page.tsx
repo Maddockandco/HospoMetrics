@@ -1,4 +1,4 @@
-log"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -63,4 +63,4 @@ export default function LoginPage() {
       </form>
     </main>
   );
-}in/page.tsx  
+}
