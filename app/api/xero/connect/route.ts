@@ -2,9 +2,10 @@
 // Redirects the user to Xero's consent screen.
 
 import { NextResponse } from "next/server";
-import { xero } from "@/lib/xero";
+import { getXeroClient } from "@/lib/xero";
 
 export async function GET() {
+  const xero = getXeroClient();
   const consentUrl = await xero.buildConsentUrl();
   return NextResponse.redirect(consentUrl);
 }
