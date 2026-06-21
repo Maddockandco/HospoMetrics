@@ -3,7 +3,7 @@ export default function Home() {
     <main style={{ padding: 40, fontFamily: "sans-serif" }}>
       <h1>HospoMetrics</h1>
       <p>Hospitality reporting platform — under construction.</p>
-      <a href="/api/xero/connect">Connect to Xero</a>
+      <a href="/login">Sign in</a>
     </main>
   );
 }
