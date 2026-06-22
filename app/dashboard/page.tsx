@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface StreamData {
@@ -790,6 +790,9 @@ export default function DashboardPage() {
               />
             </div>
           )}
+
+          {/* Rolling average toggle — weekly only */}
+          {activeNav === "Weekly" && (
             <div style={{ padding: "0 16px", marginBottom: 20 }}>
               <div style={{ fontSize: 9, color: "#4a5a7a", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>View</div>
               <Tooltip text={TOOLTIPS.rolling_avg}>
