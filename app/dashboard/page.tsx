@@ -837,19 +837,6 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Month picker — monthly only */}
-          {activeNav === "Monthly" && (
-            <div style={{ padding: "0 16px", marginBottom: 20 }}>
-              <div style={{ fontSize: 9, color: "#4a5a7a", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Month</div>
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                style={{ width: "100%", background: "#1e2535", border: "1px solid #252d3d", color: "#f0f4ff", borderRadius: 6, padding: "6px 8px", fontSize: 11, boxSizing: "border-box" }}
-              />
-            </div>
-          )}
-
           {/* Rolling average toggle — weekly only */}
           {activeNav === "Weekly" && (
             <div style={{ padding: "0 16px", marginBottom: 20 }}>
@@ -862,17 +849,35 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Week picker */}
-          <div style={{ padding: "0 16px", borderTop: "1px solid #1e2535", paddingTop: 20 }}>
-            <div style={{ fontSize: 9, color: "#4a5a7a", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Week</div>
-            <div style={{ fontSize: 11, color: "#f0f4ff", marginBottom: 10, lineHeight: 1.4 }}>{formatWeekLabel(selectedWeek)}</div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={() => shiftWeek(-1)} style={{ flex: 1, background: "#1e2535", border: "none", color: "#f0f4ff", borderRadius: 6, padding: "6px 0", cursor: "pointer", fontSize: 13 }}>←</button>
-              <button onClick={() => shiftWeek(1)} disabled={selectedWeek >= defaultWeek} style={{ flex: 1, background: "#1e2535", border: "none", color: selectedWeek >= defaultWeek ? "#3d4a63" : "#f0f4ff", borderRadius: 6, padding: "6px 0", cursor: selectedWeek >= defaultWeek ? "default" : "pointer", fontSize: 13 }}>→</button>
+          {/* Week picker — hidden on Monthly tab */}
+          {activeNav !== "Monthly" && (
+            <div style={{ padding: "0 16px", borderTop: "1px solid #1e2535", paddingTop: 20 }}>
+              <div style={{ fontSize: 9, color: "#4a5a7a", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Week</div>
+              <div style={{ fontSize: 11, color: "#f0f4ff", marginBottom: 10, lineHeight: 1.4 }}>{formatWeekLabel(selectedWeek)}</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={() => shiftWeek(-1)} style={{ flex: 1, background: "#1e2535", border: "none", color: "#f0f4ff", borderRadius: 6, padding: "6px 0", cursor: "pointer", fontSize: 13 }}>←</button>
+                <button onClick={() => shiftWeek(1)} disabled={selectedWeek >= defaultWeek} style={{ flex: 1, background: "#1e2535", border: "none", color: selectedWeek >= defaultWeek ? "#3d4a63" : "#f0f4ff", borderRadius: 6, padding: "6px 0", cursor: selectedWeek >= defaultWeek ? "default" : "pointer", fontSize: 13 }}>→</button>
+              </div>
+              <input type="date" value={selectedWeek} onChange={(e) => setSelectedWeek(e.target.value)}
+                style={{ width: "100%", marginTop: 8, background: "#1e2535", border: "1px solid #252d3d", color: "#f0f4ff", borderRadius: 6, padding: "6px 8px", fontSize: 11, boxSizing: "border-box" }} />
             </div>
-            <input type="date" value={selectedWeek} onChange={(e) => setSelectedWeek(e.target.value)}
-              style={{ width: "100%", marginTop: 8, background: "#1e2535", border: "1px solid #252d3d", color: "#f0f4ff", borderRadius: 6, padding: "6px 8px", fontSize: 11, boxSizing: "border-box" }} />
-          </div>
+          )}
+
+          {/* Month picker — only on Monthly tab */}
+          {activeNav === "Monthly" && (
+            <div style={{ padding: "0 16px", borderTop: "1px solid #1e2535", paddingTop: 20 }}>
+              <div style={{ fontSize: 9, color: "#4a5a7a", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Month</div>
+              <div style={{ fontSize: 11, color: "#f0f4ff", marginBottom: 10, lineHeight: 1.4 }}>
+                {new Date(selectedMonth + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
+              </div>
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{ width: "100%", background: "#1e2535", border: "1px solid #252d3d", color: "#f0f4ff", borderRadius: 6, padding: "6px 8px", fontSize: 11, boxSizing: "border-box" }}
+              />
+            </div>
+          )}
         </div>
 
         {/* Main content */}
