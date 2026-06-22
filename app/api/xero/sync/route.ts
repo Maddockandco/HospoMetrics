@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getXeroClient } from "@/lib/xero";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { ReportWithRow } from "xero-node";
+import { ReportWithRow, RowType } from "xero-node";
 
 // Sync starts from this date — earliest reliable data for Tangerine Trees
 const SYNC_FROM = new Date("2026-03-01");
@@ -152,7 +152,7 @@ export async function GET(req: NextRequest) {
         const sectionTitle = section.title || "Unknown";
 
         for (const row of section.rows) {
-          if (row.rowType !== "Row") continue;
+          if (row.rowType !== RowType.Row) continue;
           const cells = row.cells || [];
 
           const accountName = cells[0]?.value || "";
