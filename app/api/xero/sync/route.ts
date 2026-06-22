@@ -88,17 +88,24 @@ export async function GET(req: NextRequest) {
 
   // Restore the token into the xero-node client
   const xero = getXeroClient();
-  await xero.setTokenSet({
+  const tokenSet = {
     access_token: tokenRow.access_token,
     refresh_token: tokenRow.refresh_token,
     expires_at: tokenRow.expires_at
       ? new Date(tokenRow.expires_at).getTime() / 1000
       : undefined,
-  });
+  };
+  await xero.setTokenSet(tokenSet);
 
-  // Refresh the token if needed and save the new one
-  const refreshed = await xero.refreshToken();
-  if (refreshed) {
+  // Refresh if expired or expiring within 60 seconds
+  const now = Math.floor(Date.now() / 1000);
+  const expiresAt = tokenSet.expires_at ?? 0;
+  if (expiresAt < now + 60) {
+    await xero.refreshWithRefreshToken(
+      process.env.XERO_CLIENT_ID!,
+      process.env.XERO_CLIENT_SECRET!,
+      tokenRow.refresh_token
+    );
     const newTokenSet = await xero.readTokenSet();
     await supabaseAdmin.from("xero_tokens").upsert({
       client_id: clientRecord.id,
@@ -109,6 +116,9 @@ export async function GET(req: NextRequest) {
         : null,
     });
   }
+
+  // Load tenants so API calls work
+  await xero.updateTenants();
 
   const tenantId = clientRecord.xero_tenant_id;
   const weeks = getWeeks(SYNC_FROM, new Date());
