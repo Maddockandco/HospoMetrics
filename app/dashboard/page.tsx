@@ -31,7 +31,7 @@ interface WeeklyReport {
 }
 
 const STREAM_COLORS: Record<string, string> = { Bar: "#e8a838", Restaurant: "#e07b4a", Hotel: "#5b8fa8" };
-const NAV = ["Weekly", "Trends", "Alerts"] as const;
+const NAV = ["Weekly", "Monthly", "Trends", "Alerts"] as const;
 type NavItem = typeof NAV[number];
 
 const TOOLTIPS: Record<string, string> = {
@@ -528,6 +528,151 @@ function AlertsView({ report }: { report: WeeklyReport }) {
   );
 }
 
+// ── Monthly View ──────────────────────────────────────────────────────────────
+function MonthlyView({ report }: { report: any }) {
+  const maxRevenue = Math.max(...(report.seasonal_trend || []).map((t: any) => t.revenue), 1);
+  const formatMonth = (m: string) => {
+    const [y, mo] = m.split("-");
+    return new Date(parseInt(y), parseInt(mo) - 1, 1).toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Data quality notice */}
+      {report.data_quality.is_monthly_lump && (
+        <div style={{ background: "#1a1e2e", border: "1px solid #3d4a63", borderRadius: 8, padding: "10px 16px", fontSize: 12, color: "#8892a8", display: "flex", alignItems: "center", gap: 8 }}>
+          <span>ℹ</span>
+          <span>{report.data_quality.note} Weekly breakdown not available for pre-November 2025 data.</span>
+        </div>
+      )}
+
+      {/* Monthly totals strip */}
+      <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: "18px 24px", display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12 }}>
+        {[
+          { label: "Revenue", value: fmt(report.totals.revenue), color: "#f0f4ff" },
+          { label: "COGS", value: fmt(report.totals.cogs), color: "#e07b4a" },
+          { label: "Wages", value: fmt(report.totals.wages), sub: `${report.totals.wage_pct_of_revenue.toFixed(1)}% of rev`, color: report.totals.wage_pct_of_revenue > 40 ? "#e05555" : "#e8a838" },
+          { label: "Events", value: fmt(report.totals.events), color: "#9b6fd4" },
+          { label: "Gross Margin", value: `${report.totals.gross_margin_pct.toFixed(1)}%`, sub: fmt(report.totals.gross_margin), color: report.totals.gross_margin_pct >= 0 ? "#4caf78" : "#e05555" },
+          { label: "Net Profit", value: `${report.totals.net_profit_pct.toFixed(1)}%`, sub: fmt(report.totals.net_profit), color: report.totals.net_profit >= 0 ? "#4caf78" : "#e05555" },
+        ].map(({ label, value, sub, color }) => (
+          <div key={label} style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 9, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color }}>{value}</div>
+            {sub && <div style={{ fontSize: 10, color: "#6b7a99", marginTop: 2 }}>{sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Stream cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+        {report.streams.map((s: any) => {
+          const color = STREAM_COLORS[s.stream] || "#888";
+          return (
+            <div key={s.stream} style={{ background: "#141824", border: "1px solid #252d3d", borderTop: `3px solid ${color}`, borderRadius: 12, padding: 20 }}>
+              <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
+                {s.stream} {s.is_estimated && <span style={{ background: "#2a2f42", color: "#8892a8", fontSize: 9, padding: "1px 5px", borderRadius: 3, marginLeft: 4 }}>est.</span>}
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 700, color: "#f0f4ff", marginBottom: 14 }}>{fmt(s.revenue)}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {[
+                  { label: "COGS", value: s.cogs, color: "#e07b4a" },
+                  { label: "Wages", value: s.wages, color: "#e8a838" },
+                  { label: "Gross Margin", value: s.gross_margin, color: s.gross_margin >= 0 ? "#4caf78" : "#e05555" },
+                  { label: "Net Profit", value: s.net_profit, color: s.net_profit >= 0 ? "#4caf78" : "#e05555" },
+                ].map(({ label, value, color: c }) => (
+                  <div key={label}>
+                    <div style={{ fontSize: 9, color: "#6b7a99", marginBottom: 2 }}>{label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: c }}>{fmt(value)}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ borderTop: "1px solid #1e2535", paddingTop: 10, marginTop: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                  <span style={{ fontSize: 9, color: "#6b7a99" }}>Gross Margin %</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: s.gross_margin_pct >= 0 ? "#4caf78" : "#e05555" }}>{s.gross_margin_pct.toFixed(1)}%</span>
+                </div>
+                <Bar value={s.gross_margin_pct} max={100} color={s.gross_margin_pct >= 0 ? "#4caf78" : "#e05555"} height={5} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* YoY comparison */}
+      {report.yoy.has_data && (
+        <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: 24 }}>
+          <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 18 }}>
+            <TipLabel label="Year-on-Year" tipKey="yoy" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+            {[
+              { label: "Revenue", current: fmt(report.totals.revenue), yago: fmt(report.yoy.year_ago_totals.revenue), change: report.yoy.revenue },
+              { label: "Gross Margin %", current: `${report.totals.gross_margin_pct.toFixed(1)}%`, yago: `${report.yoy.year_ago_totals.gross_margin_pct.toFixed(1)}%`, change: report.yoy.gross_margin_pct },
+              { label: "Net Profit %", current: `${report.totals.net_profit_pct.toFixed(1)}%`, yago: `${report.yoy.year_ago_totals.net_profit_pct.toFixed(1)}%`, change: report.yoy.net_profit_pct },
+              { label: "Wage %", current: `${report.totals.wage_pct_of_revenue.toFixed(1)}%`, yago: `${report.yoy.year_ago_totals.wage_pct_of_revenue.toFixed(1)}%`, change: report.yoy.wage_pct !== null ? -(report.yoy.wage_pct) : null },
+            ].map(({ label, current, yago, change }) => (
+              <div key={label} style={{ background: "#0d1117", borderRadius: 8, padding: 14, border: "1px solid #1e2535" }}>
+                <div style={{ fontSize: 9, color: "#6b7a99", marginBottom: 6, textTransform: "uppercase" }}>{label}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 4 }}>{current}</div>
+                <div style={{ fontSize: 11, color: "#4a5a7a", marginBottom: 6 }}>Year ago: {yago}</div>
+                {change !== null && <StatPill value={change} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Seasonal revenue chart — all months */}
+      <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: 24 }}>
+        <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Seasonal Revenue Trend</div>
+        <div style={{ fontSize: 11, color: "#4a5a7a", marginBottom: 18 }}>All available history — grey bars = monthly lump entry, coloured = weekly actuals</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {(report.seasonal_trend || []).map((row: any) => (
+            <div key={row.month} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ fontSize: 10, color: row.month === report.month ? "#f0f4ff" : "#6b7a99", minWidth: 48, fontWeight: row.month === report.month ? 700 : 400 }}>
+                {formatMonth(row.month)}
+              </div>
+              <Tooltip text={`${formatMonth(row.month)}: ${fmt(row.revenue)} revenue, ${row.gross_margin_pct.toFixed(1)}% gross margin${row.is_monthly_lump ? " (monthly lump)" : ""}`}>
+                <div style={{ flex: 1, cursor: "help" }}>
+                  <Bar
+                    value={row.revenue}
+                    max={maxRevenue}
+                    color={row.month === report.month ? "#e8a838" : row.is_monthly_lump ? "#2a3048" : "#3d5a7a"}
+                    height={18}
+                  />
+                </div>
+              </Tooltip>
+              <div style={{ fontSize: 11, color: row.month === report.month ? "#f0f4ff" : "#6b7a99", minWidth: 70, textAlign: "right" }}>{fmt(row.revenue)}</div>
+              <div style={{ minWidth: 50, textAlign: "right" }}><StatPill value={row.gross_margin_pct} /></div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Opex breakdown */}
+      {report.opex.length > 0 && (
+        <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: 24 }}>
+          <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>Operating Expenses</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {report.opex.map((line: any) => (
+              <div key={line.name} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ flex: 1, fontSize: 12, color: "#8892a8" }}>{line.name}</div>
+                <div style={{ width: 200 }}><Bar value={line.amount} max={Math.max(...report.opex.map((o: any) => o.amount))} color="#4a5a7a" height={5} /></div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#f0f4ff", minWidth: 70, textAlign: "right" }}>{fmt(line.amount)}</div>
+              </div>
+            ))}
+            <div style={{ borderTop: "1px solid #252d3d", paddingTop: 10, display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 11, color: "#6b7a99" }}>Total Opex</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#f0f4ff" }}>{fmt(report.opex.reduce((s: number, l: any) => s + l.amount, 0))}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [report, setReport] = useState<WeeklyReport | null>(null);
@@ -541,6 +686,12 @@ export default function DashboardPage() {
 
   const [syncing, setSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [monthlyReport, setMonthlyReport] = useState<any | null>(null);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
 
   const fetchReport = useCallback(async (week: string) => {
     setLoading(true); setError(null);
@@ -566,6 +717,20 @@ export default function DashboardPage() {
       setSyncing(false);
     }
   }, [selectedWeek, fetchReport]);
+
+  const fetchMonthly = useCallback(async (month: string) => {
+    setMonthlyLoading(true);
+    try {
+      const res = await fetch(`/api/reports/monthly?month=${month}`);
+      if (!res.ok) throw new Error("Failed to load monthly report");
+      setMonthlyReport(await res.json());
+    } catch (e: any) { console.error(e); }
+    finally { setMonthlyLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeNav === "Monthly") fetchMonthly(selectedMonth);
+  }, [activeNav, selectedMonth, fetchMonthly]);
 
   function shiftWeek(n: number) {
     const d = new Date(selectedWeek);
@@ -605,7 +770,7 @@ export default function DashboardPage() {
             <div style={{ fontSize: 9, color: "#4a5a7a", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Reports</div>
             {NAV.map((item) => (
               <button key={item} onClick={() => setActiveNav(item)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 12px", background: activeNav === item ? "#1e2535" : "transparent", border: "none", borderRadius: 8, color: activeNav === item ? "#f0f4ff" : "#6b7a99", fontSize: 13, fontWeight: activeNav === item ? 600 : 400, cursor: "pointer", marginBottom: 2, textAlign: "left" }}>
-                {item === "Weekly" ? "📊" : item === "Trends" ? "📈" : "🔔"} {item}
+                {item === "Weekly" ? "📊" : item === "Monthly" ? "📅" : item === "Trends" ? "📈" : "🔔"} {item}
                 {item === "Alerts" && report && report.spikes.length > 0 && (
                   <span style={{ marginLeft: "auto", background: "#e05555", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10 }}>{report.spikes.length}</span>
                 )}
@@ -613,8 +778,18 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Rolling average toggle */}
-          {activeNav === "Weekly" && (
+          {/* Month picker — monthly only */}
+          {activeNav === "Monthly" && (
+            <div style={{ padding: "0 16px", marginBottom: 20 }}>
+              <div style={{ fontSize: 9, color: "#4a5a7a", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Month</div>
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{ width: "100%", background: "#1e2535", border: "1px solid #252d3d", color: "#f0f4ff", borderRadius: 6, padding: "6px 8px", fontSize: 11, boxSizing: "border-box" }}
+              />
+            </div>
+          )}
             <div style={{ padding: "0 16px", marginBottom: 20 }}>
               <div style={{ fontSize: 9, color: "#4a5a7a", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>View</div>
               <Tooltip text={TOOLTIPS.rolling_avg}>
@@ -643,7 +818,11 @@ export default function DashboardPage() {
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{activeNav}</div>
             <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em" }}>
-              {showRolling && activeNav === "Weekly" ? `4-week rolling average ending ${formatWeekLabel(selectedWeek).split("–")[1]?.trim()}` : formatWeekLabel(selectedWeek)}
+              {activeNav === "Monthly"
+                ? new Date(selectedMonth + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" })
+                : showRolling && activeNav === "Weekly"
+                ? `4-week rolling average ending ${formatWeekLabel(selectedWeek).split("–")[1]?.trim()}`
+                : formatWeekLabel(selectedWeek)}
             </div>
           </div>
           {loading && <div style={{ textAlign: "center", padding: 80, color: "#6b7a99" }}>Loading…</div>}
@@ -651,6 +830,8 @@ export default function DashboardPage() {
           {report && !loading && (
             <>
               {activeNav === "Weekly" && <WeeklyView report={report} showRolling={showRolling} />}
+              {activeNav === "Monthly" && monthlyReport && <MonthlyView report={monthlyReport} />}
+              {activeNav === "Monthly" && monthlyLoading && <div style={{ textAlign: "center", padding: 80, color: "#6b7a99" }}>Loading monthly report…</div>}
               {activeNav === "Trends" && <TrendsView report={report} />}
               {activeNav === "Alerts" && <AlertsView report={report} />}
             </>
