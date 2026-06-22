@@ -53,6 +53,23 @@ export async function GET(req: NextRequest) {
     .eq("client_id", clientId)
     .eq("txn_date", weekStartStr);
 
+  // Fetch 4-week rolling wage total (current week + 3 prior weeks)
+  // Used to smooth bi-weekly payroll bumps into a meaningful weekly average
+  const fourWeeksAgo = new Date(weekStart);
+  fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 21);
+  const fourWeeksAgoStr = fourWeeksAgo.toISOString().split("T")[0];
+
+  const { data: wageRows } = await supabaseAdmin
+    .from("gl_transactions")
+    .select("debit")
+    .eq("client_id", clientId)
+    .eq("account_name", "Wages and Salaries")
+    .gte("txn_date", fourWeeksAgoStr)
+    .lte("txn_date", weekStartStr);
+
+  const rollingWageTotal = (wageRows || []).reduce((sum, r) => sum + (r.debit || 0), 0);
+  const weeklyWageAvg = rollingWageTotal / 4;
+
   // Fetch stream mappings
   const { data: mappings } = await supabaseAdmin
     .from("stream_mappings")
@@ -139,14 +156,9 @@ export async function GET(req: NextRequest) {
     } else if (costType === "cogs") {
       result[streamId].cogs += amount;
     } else if (costType === "wages") {
-      // Split wages across streams using wage allocation rules
-      const wageRules = allocRules.filter((r) => r.rule_type === "wages");
-      for (const rule of wageRules) {
-        if (result[rule.revenue_stream_id]) {
-          result[rule.revenue_stream_id].wages += amount * rule.percentage;
-          result[rule.revenue_stream_id].is_estimated = true;
-        }
-      }
+      // Use 4-week rolling average wage instead of raw weekly figure
+      // to smooth bi-weekly payroll bumps (applies once, not per row)
+      // We handle this after the loop below
     } else if (costType === "overhead") {
       // Shared overhead — split equally across non-shared streams
       const mainStreams = streams.filter((s) => s.name !== "Shared");
@@ -154,6 +166,15 @@ export async function GET(req: NextRequest) {
       for (const s of mainStreams) {
         result[s.id].overhead += share;
       }
+    }
+  }
+
+  // Apply 4-week rolling wage average across streams using allocation rules
+  const wageRules = allocRules.filter((r) => r.rule_type === "wages");
+  for (const rule of wageRules) {
+    if (result[rule.revenue_stream_id]) {
+      result[rule.revenue_stream_id].wages += weeklyWageAvg * rule.percentage;
+      result[rule.revenue_stream_id].is_estimated = true;
     }
   }
 
@@ -205,5 +226,10 @@ export async function GET(req: NextRequest) {
           : 0,
     },
     is_estimated: streamResults.some((r) => r.is_estimated),
+    wage_basis: {
+      type: "4_week_rolling_average",
+      weekly_average: Math.round(weeklyWageAvg * 100) / 100,
+      four_week_total: Math.round(rollingWageTotal * 100) / 100,
+    },
   });
 }
