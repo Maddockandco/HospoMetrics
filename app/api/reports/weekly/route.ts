@@ -29,10 +29,13 @@ export async function GET(req: NextRequest) {
   }
   const weekStartStr = weekStart.toISOString().split("T")[0];
 
-  const { data: clientRecord } = await supabaseAdmin
-    .from("clients").select("id").eq("owner_user_id", user.id).single();
-  if (!clientRecord) return NextResponse.json({ error: "Client not found" }, { status: 404 });
-  const clientId = clientRecord.id;
+  const { data: clientUserRecord } = await supabaseAdmin
+    .from("client_users")
+    .select("client_id, role")
+    .eq("user_id", user.id)
+    .single();
+  if (!clientUserRecord) return NextResponse.json({ error: "Client not found" }, { status: 404 });
+  const clientId = clientUserRecord.client_id;
 
   // Current week GL rows
   const { data: glRows } = await supabaseAdmin
