@@ -1,6 +1,6 @@
 // app/api/reports/weekly/route.ts
-// Returns a weekly P&L report broken down by revenue stream,
-// applying stream mappings and allocation rules from Supabase.
+// Returns a full weekly report: stream P&L, opex breakdown, net profit,
+// spend spike detection, and 8-week trend data.
 // Route: /api/reports/weekly?week=2026-03-02
 // Access: owner or viewer
 
@@ -8,17 +8,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
+const SPIKE_THRESHOLD = 0.25; // 25% above 4-week average
+
 export async function GET(req: NextRequest) {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Get week start from query param, default to current week Monday
   const { searchParams } = new URL(req.url);
   const weekParam = searchParams.get("week");
 
@@ -33,101 +29,102 @@ export async function GET(req: NextRequest) {
   }
   const weekStartStr = weekStart.toISOString().split("T")[0];
 
-  // Get client for this user
   const { data: clientRecord } = await supabaseAdmin
-    .from("clients")
-    .select("id")
-    .eq("owner_user_id", user.id)
-    .single();
-
-  if (!clientRecord) {
-    return NextResponse.json({ error: "Client not found" }, { status: 404 });
-  }
-
+    .from("clients").select("id").eq("owner_user_id", user.id).single();
+  if (!clientRecord) return NextResponse.json({ error: "Client not found" }, { status: 404 });
   const clientId = clientRecord.id;
 
-  // Fetch all GL rows for this week
+  // Current week GL rows
   const { data: glRows } = await supabaseAdmin
-    .from("gl_transactions")
-    .select("*")
-    .eq("client_id", clientId)
-    .eq("txn_date", weekStartStr);
+    .from("gl_transactions").select("*")
+    .eq("client_id", clientId).eq("txn_date", weekStartStr);
 
-  // Fetch 4-week rolling wage total (current week + 3 prior weeks)
-  // Used to smooth bi-weekly payroll bumps into a meaningful weekly average
+  // 4-week rolling wage average
   const fourWeeksAgo = new Date(weekStart);
   fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 21);
   const fourWeeksAgoStr = fourWeeksAgo.toISOString().split("T")[0];
 
   const { data: wageRows } = await supabaseAdmin
-    .from("gl_transactions")
-    .select("debit")
-    .eq("client_id", clientId)
-    .eq("account_name", "Wages and Salaries")
-    .gte("txn_date", fourWeeksAgoStr)
-    .lte("txn_date", weekStartStr);
+    .from("gl_transactions").select("debit")
+    .eq("client_id", clientId).eq("account_name", "Wages and Salaries")
+    .gte("txn_date", fourWeeksAgoStr).lte("txn_date", weekStartStr);
 
   const rollingWageTotal = (wageRows || []).reduce((sum, r) => sum + (r.debit || 0), 0);
   const weeklyWageAvg = rollingWageTotal / 4;
 
-  // Fetch stream mappings
+  // 8 weeks of data for trends + spike baseline (8 weeks back)
+  const eightWeeksAgo = new Date(weekStart);
+  eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 49);
+  const eightWeeksAgoStr = eightWeeksAgo.toISOString().split("T")[0];
+
+  const { data: historicalRows } = await supabaseAdmin
+    .from("gl_transactions").select("*")
+    .eq("client_id", clientId)
+    .gte("txn_date", eightWeeksAgoStr)
+    .lte("txn_date", weekStartStr);
+
+  // Stream mappings + streams + allocation rules
   const { data: mappings } = await supabaseAdmin
-    .from("stream_mappings")
-    .select("*, revenue_streams(name)")
-    .eq("client_id", clientId);
-
-  // Fetch revenue streams
+    .from("stream_mappings").select("*, revenue_streams(name)").eq("client_id", clientId);
   const { data: streams } = await supabaseAdmin
-    .from("revenue_streams")
-    .select("*")
-    .eq("client_id", clientId)
-    .order("sort_order");
-
-  // Fetch allocation rules active for this week
+    .from("revenue_streams").select("*").eq("client_id", clientId).order("sort_order");
   const { data: allocRules } = await supabaseAdmin
-    .from("allocation_rules")
-    .select("*, revenue_streams(name)")
-    .eq("client_id", clientId)
-    .lte("effective_from", weekStartStr)
+    .from("allocation_rules").select("*, revenue_streams(name)")
+    .eq("client_id", clientId).lte("effective_from", weekStartStr)
     .or("effective_to.is.null,effective_to.gte." + weekStartStr);
 
   if (!glRows || !mappings || !streams || !allocRules) {
     return NextResponse.json({ error: "Data fetch failed" }, { status: 500 });
   }
 
-  // Build a lookup: account_code -> mapping
   const mappingByAccount: Record<string, any> = {};
-  for (const m of mappings) {
-    mappingByAccount[m.match_value] = m;
+  for (const m of mappings) mappingByAccount[m.match_value] = m;
+
+  // ── Stream P&L buckets ──────────────────────────────────────────────
+  const result: Record<string, any> = {};
+  for (const s of streams) {
+    result[s.id] = { stream: s.name, revenue: 0, cogs: 0, wages: 0, overhead: 0, events: 0, is_estimated: false };
   }
-
-  // Initialise result buckets per stream
-  const result: Record<string, {
-    stream: string;
-    revenue: number;
-    cogs: number;
-    wages: number;
-    overhead: number;
-    gross_margin: number;
-    is_estimated: boolean;
-  }> = {};
-
-  for (const stream of streams) {
-    result[stream.id] = {
-      stream: stream.name,
-      revenue: 0,
-      cogs: 0,
-      wages: 0,
-      overhead: 0,
-      gross_margin: 0,
-      is_estimated: false,
-    };
-  }
-
-  // Find the "Shared" stream for allocation
   const sharedStream = streams.find((s) => s.name === "Shared");
 
-  // Process each GL row
+  // ── Opex breakdown (account-level) ──────────────────────────────────
+  const opexLines: Record<string, { name: string; amount: number }> = {};
+
+  // ── Spike detection: build per-account 4-week averages ──────────────
+  const accountHistory: Record<string, number[]> = {};
+  const allWeekDates = [...new Set((historicalRows || []).map((r) => r.txn_date))].sort();
+  const priorWeeks = allWeekDates.filter((d) => d < weekStartStr).slice(-4);
+
+  for (const row of historicalRows || []) {
+    if (!priorWeeks.includes(row.txn_date)) continue;
+    const amt = row.debit > 0 ? row.debit : row.credit;
+    if (!accountHistory[row.account_name]) accountHistory[row.account_name] = [];
+    accountHistory[row.account_name].push(amt);
+  }
+
+  // ── 8-week trend data ────────────────────────────────────────────────
+  const weeklyTotals: Record<string, { revenue: number; gross_margin: number; net_profit: number }> = {};
+  for (const date of allWeekDates) {
+    weeklyTotals[date] = { revenue: 0, gross_margin: 0, net_profit: 0 };
+  }
+
+  for (const row of historicalRows || []) {
+    const mapping = mappingByAccount[row.account_code];
+    if (!mapping || !weeklyTotals[row.txn_date]) continue;
+    const amt = row.credit > 0 ? row.credit : row.debit;
+    const costType = mapping.cost_type;
+    if (costType === "revenue") weeklyTotals[row.txn_date].revenue += amt;
+    else if (costType === "cogs") weeklyTotals[row.txn_date].gross_margin -= amt;
+    else if (costType === "overhead") weeklyTotals[row.txn_date].net_profit -= amt;
+  }
+  for (const date of allWeekDates) {
+    weeklyTotals[date].gross_margin += weeklyTotals[date].revenue;
+    weeklyTotals[date].net_profit += weeklyTotals[date].gross_margin;
+  }
+
+  // ── Process current week GL rows ─────────────────────────────────────
+  const spikes: { account: string; amount: number; avg: number; pct_above: number }[] = [];
+
   for (const row of glRows) {
     const mapping = mappingByAccount[row.account_code];
     if (!mapping) continue;
@@ -140,10 +137,7 @@ export async function GET(req: NextRequest) {
 
     if (costType === "revenue") {
       if (streamId === sharedStream?.id) {
-        // Split lumped Bar+Restaurant revenue using allocation rules
-        const splitRules = allocRules.filter(
-          (r) => r.rule_type === "retrofit_sales_split"
-        );
+        const splitRules = allocRules.filter((r) => r.rule_type === "retrofit_sales_split");
         for (const rule of splitRules) {
           if (result[rule.revenue_stream_id]) {
             result[rule.revenue_stream_id].revenue += amount * rule.percentage;
@@ -154,22 +148,38 @@ export async function GET(req: NextRequest) {
         result[streamId].revenue += amount;
       }
     } else if (costType === "cogs") {
-      result[streamId].cogs += amount;
+      // Artists/Events surfaced separately
+      if (row.account_name.toLowerCase().includes("artist") || row.account_name.toLowerCase().includes("event")) {
+        result[streamId].events += amount;
+      } else {
+        result[streamId].cogs += amount;
+      }
     } else if (costType === "wages") {
-      // Use 4-week rolling average wage instead of raw weekly figure
-      // to smooth bi-weekly payroll bumps (applies once, not per row)
-      // We handle this after the loop below
+      // handled via rolling average below
     } else if (costType === "overhead") {
-      // Shared overhead — split equally across non-shared streams
-      const mainStreams = streams.filter((s) => s.name !== "Shared");
-      const share = amount / mainStreams.length;
-      for (const s of mainStreams) {
-        result[s.id].overhead += share;
+      // Opex breakdown
+      opexLines[row.account_name] = {
+        name: row.account_name,
+        amount: (opexLines[row.account_name]?.amount || 0) + amount,
+      };
+      // Spike detection
+      const history = accountHistory[row.account_name] || [];
+      if (history.length >= 2) {
+        const avg = history.reduce((a, b) => a + b, 0) / history.length;
+        const pctAbove = avg > 0 ? (amount - avg) / avg : 0;
+        if (pctAbove > SPIKE_THRESHOLD) {
+          spikes.push({
+            account: row.account_name,
+            amount: Math.round(amount * 100) / 100,
+            avg: Math.round(avg * 100) / 100,
+            pct_above: Math.round(pctAbove * 10000) / 100,
+          });
+        }
       }
     }
   }
 
-  // Apply 4-week rolling wage average across streams using allocation rules
+  // Apply rolling wage average
   const wageRules = allocRules.filter((r) => r.rule_type === "wages");
   for (const rule of wageRules) {
     if (result[rule.revenue_stream_id]) {
@@ -178,37 +188,43 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Calculate gross margin per stream
-  // Gross margin = Revenue - COGS - Wages (overhead excluded from gross)
+  // ── Build stream results ─────────────────────────────────────────────
+  const totalOpex = Object.values(opexLines).reduce((s, l) => s + l.amount, 0);
+  const mainStreams = streams.filter((s) => s.name !== "Shared");
+  const opexPerStream = mainStreams.length > 0 ? totalOpex / mainStreams.length : 0;
+
   const streamResults = Object.values(result)
     .filter((r) => r.stream !== "Shared")
-    .map((r) => ({
-      ...r,
-      cogs: Math.round(r.cogs * 100) / 100,
-      wages: Math.round(r.wages * 100) / 100,
-      overhead: Math.round(r.overhead * 100) / 100,
-      revenue: Math.round(r.revenue * 100) / 100,
-      gross_margin: Math.round((r.revenue - r.cogs - r.wages) * 100) / 100,
-      gross_margin_pct:
-        r.revenue > 0
-          ? Math.round(((r.revenue - r.cogs - r.wages) / r.revenue) * 10000) / 100
-          : 0,
-      wage_pct_of_revenue:
-        r.revenue > 0
-          ? Math.round((r.wages / r.revenue) * 10000) / 100
-          : 0,
-    }));
+    .map((r) => {
+      const grossMargin = r.revenue - r.cogs - r.wages - r.events;
+      const netProfit = grossMargin - opexPerStream;
+      return {
+        stream: r.stream,
+        revenue: Math.round(r.revenue * 100) / 100,
+        cogs: Math.round(r.cogs * 100) / 100,
+        wages: Math.round(r.wages * 100) / 100,
+        events: Math.round(r.events * 100) / 100,
+        overhead: Math.round(opexPerStream * 100) / 100,
+        gross_margin: Math.round(grossMargin * 100) / 100,
+        gross_margin_pct: r.revenue > 0 ? Math.round((grossMargin / r.revenue) * 10000) / 100 : 0,
+        net_profit: Math.round(netProfit * 100) / 100,
+        net_profit_pct: r.revenue > 0 ? Math.round((netProfit / r.revenue) * 10000) / 100 : 0,
+        wage_pct_of_revenue: r.revenue > 0 ? Math.round((r.wages / r.revenue) * 10000) / 100 : 0,
+        is_estimated: r.is_estimated,
+      };
+    });
 
-  // Totals across all streams
   const totals = streamResults.reduce(
     (acc, r) => ({
       revenue: acc.revenue + r.revenue,
       cogs: acc.cogs + r.cogs,
       wages: acc.wages + r.wages,
+      events: acc.events + r.events,
       overhead: acc.overhead + r.overhead,
       gross_margin: acc.gross_margin + r.gross_margin,
+      net_profit: acc.net_profit + r.net_profit,
     }),
-    { revenue: 0, cogs: 0, wages: 0, overhead: 0, gross_margin: 0 }
+    { revenue: 0, cogs: 0, wages: 0, events: 0, overhead: 0, gross_margin: 0, net_profit: 0 }
   );
 
   return NextResponse.json({
@@ -216,15 +232,19 @@ export async function GET(req: NextRequest) {
     streams: streamResults,
     totals: {
       ...totals,
-      gross_margin_pct:
-        totals.revenue > 0
-          ? Math.round((totals.gross_margin / totals.revenue) * 10000) / 100
-          : 0,
-      wage_pct_of_revenue:
-        totals.revenue > 0
-          ? Math.round((totals.wages / totals.revenue) * 10000) / 100
-          : 0,
+      gross_margin_pct: totals.revenue > 0 ? Math.round((totals.gross_margin / totals.revenue) * 10000) / 100 : 0,
+      net_profit_pct: totals.revenue > 0 ? Math.round((totals.net_profit / totals.revenue) * 10000) / 100 : 0,
+      wage_pct_of_revenue: totals.revenue > 0 ? Math.round((totals.wages / totals.revenue) * 10000) / 100 : 0,
     },
+    opex: Object.values(opexLines).sort((a, b) => b.amount - a.amount),
+    spikes: spikes.sort((a, b) => b.pct_above - a.pct_above),
+    trend: allWeekDates.map((date) => ({
+      week: date,
+      ...weeklyTotals[date],
+      revenue: Math.round(weeklyTotals[date].revenue * 100) / 100,
+      gross_margin: Math.round(weeklyTotals[date].gross_margin * 100) / 100,
+      net_profit: Math.round(weeklyTotals[date].net_profit * 100) / 100,
+    })),
     is_estimated: streamResults.some((r) => r.is_estimated),
     wage_basis: {
       type: "4_week_rolling_average",
