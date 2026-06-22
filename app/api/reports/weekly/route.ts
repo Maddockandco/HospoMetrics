@@ -167,12 +167,15 @@ export async function GET(req: NextRequest) {
     { data: streams },
     { data: allocRules },
   ] = await Promise.all([
-    // Current week
-    supabaseAdmin.from("gl_transactions").select("*").eq("client_id", clientId).eq("txn_date", weekStartStr),
-    // Prior week
-    supabaseAdmin.from("gl_transactions").select("*").eq("client_id", clientId).eq("txn_date", priorWeekStr),
-    // Year ago week
-    supabaseAdmin.from("gl_transactions").select("*").eq("client_id", clientId).eq("txn_date", yearAgoStr),
+    // Current week — exclude monthly lump rows
+    supabaseAdmin.from("gl_transactions").select("*").eq("client_id", clientId)
+      .eq("txn_date", weekStartStr).neq("source_granularity", "monthly"),
+    // Prior week — exclude monthly lump rows
+    supabaseAdmin.from("gl_transactions").select("*").eq("client_id", clientId)
+      .eq("txn_date", priorWeekStr).neq("source_granularity", "monthly"),
+    // Year ago week — exclude monthly lump rows
+    supabaseAdmin.from("gl_transactions").select("*").eq("client_id", clientId)
+      .eq("txn_date", yearAgoStr).neq("source_granularity", "monthly"),
     // 4-week rolling wages (current)
     supabaseAdmin.from("gl_transactions").select("debit").eq("client_id", clientId)
       .eq("account_name", "Wages and Salaries")
@@ -185,9 +188,10 @@ export async function GET(req: NextRequest) {
     supabaseAdmin.from("gl_transactions").select("debit").eq("client_id", clientId)
       .eq("account_name", "Wages and Salaries")
       .gte("txn_date", toStr(addDays(weekStart, -364 - 21))).lte("txn_date", yearAgoStr),
-    // 8-week history for trends + spike baseline
+    // 8-week history for trends + spike baseline — exclude monthly lump rows
     supabaseAdmin.from("gl_transactions").select("*").eq("client_id", clientId)
-      .gte("txn_date", toStr(addDays(weekStart, -56))).lte("txn_date", weekStartStr),
+      .gte("txn_date", toStr(addDays(weekStart, -56))).lte("txn_date", weekStartStr)
+      .neq("source_granularity", "monthly"),
     supabaseAdmin.from("stream_mappings").select("*, revenue_streams(name)").eq("client_id", clientId),
     supabaseAdmin.from("revenue_streams").select("*").eq("client_id", clientId).order("sort_order"),
     supabaseAdmin.from("allocation_rules").select("*, revenue_streams(name)")
