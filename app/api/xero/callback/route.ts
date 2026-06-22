@@ -4,7 +4,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getXeroClient } from "@/lib/xero";
-import { createClient } from "@/lib/supabase/server"; // your existing Supabase server client helper
+import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(req: NextRequest) {
   const supabase = createClient();
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   // updateTenants() populates xero.tenants with the connected org(s)
   await xero.updateTenants();
-  const tenant = xero.tenants[0]; // assume single org for now - Tangerine Trees
+  const tenant = xero.tenants[0];
 
   if (!tenant) {
     return NextResponse.redirect(
@@ -32,10 +33,8 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Find the client record for this logged-in user.
-  // Adjust this query to however you link auth.users -> clients in your schema
-  // (e.g. a user_id column on clients, or a join table for multi-user firms).
-  const { data: clientRecord, error: clientErr } = await supabase
+  // Find the client record using admin client (bypasses RLS for this lookup)
+  const { data: clientRecord, error: clientErr } = await supabaseAdmin
     .from("clients")
     .select("id")
     .eq("owner_user_id", user.id)
@@ -47,15 +46,13 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Store the tenant ID on the client record, and the token set separately
-  // (token sets should live in their own table, not on `clients`, since they
-  // expire/refresh independently and you don't want to bloat that row).
-  await supabase
+  // Use admin client for writes so RLS doesn't block token storage
+  await supabaseAdmin
     .from("clients")
     .update({ xero_tenant_id: tenant.tenantId })
     .eq("id", clientRecord.id);
 
-  await supabase.from("xero_tokens").upsert({
+  await supabaseAdmin.from("xero_tokens").upsert({
     client_id: clientRecord.id,
     access_token: tokenSet.access_token,
     refresh_token: tokenSet.refresh_token,
