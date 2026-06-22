@@ -539,6 +539,9 @@ export default function DashboardPage() {
   const defaultWeek = getMondayOfWeek(new Date()).toISOString().split("T")[0];
   const [selectedWeek, setSelectedWeek] = useState(defaultWeek);
 
+  const [syncing, setSyncing] = useState(false);
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+
   const fetchReport = useCallback(async (week: string) => {
     setLoading(true); setError(null);
     try {
@@ -550,6 +553,19 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => { fetchReport(selectedWeek); }, [selectedWeek, fetchReport]);
+
+  const handleSync = useCallback(async () => {
+    setSyncing(true);
+    try {
+      await fetch("/api/xero/sync");
+      setLastSynced(new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }));
+      fetchReport(selectedWeek);
+    } catch (e) {
+      console.error("Sync failed", e);
+    } finally {
+      setSyncing(false);
+    }
+  }, [selectedWeek, fetchReport]);
 
   function shiftWeek(n: number) {
     const d = new Date(selectedWeek);
@@ -567,7 +583,18 @@ export default function DashboardPage() {
             <span style={{ color: "#3d4a63" }}>/</span>
             <span style={{ color: "#6b7a99", fontSize: 13 }}>Tangerine Trees</span>
           </div>
-          <a href="/api/xero/sync" style={{ fontSize: 11, color: "#6b7a99", textDecoration: "none" }}>↻ Sync Xero</a>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {lastSynced && <span style={{ fontSize: 10, color: "#4a5a7a" }}>Last synced {lastSynced}</span>}
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              style={{ fontSize: 11, color: syncing ? "#4a5a7a" : "#6b7a99", background: "none", border: "none", cursor: syncing ? "default" : "pointer", display: "flex", alignItems: "center", gap: 5 }}
+            >
+              <span style={{ display: "inline-block", animation: syncing ? "spin 1s linear infinite" : "none" }}>↻</span>
+              {syncing ? "Syncing…" : "Sync Xero"}
+            </button>
+            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+          </div>
         </div>
       </div>
 
