@@ -23,12 +23,19 @@ export function getXeroClient(): XeroClient {
       "profile",
       "email",
       "offline_access",
-      // Granular accounting scopes (required for apps created after March 2, 2026)
-      "accounting.journals.read",      // GL journal entries
-      "accounting.reports.read",       // P&L, Balance Sheet reports
-      "accounting.settings.read",      // Chart of accounts, tracking categories
-      "accounting.transactions.read",  // Invoices, bills, bank transactions
-      "accounting.contacts.read",      // Suppliers, customers
+      // Contacts (suppliers, customers)
+      "accounting.contacts.read",
+      // Chart of accounts, tracking categories
+      "accounting.settings.read",
+      // Transactions
+      "accounting.invoices.read",
+      "accounting.banktransactions.read",
+      "accounting.manualjournals.read",
+      "accounting.payments.read",
+      // Reports - exactly what we need for HospoMetrics
+      "accounting.reports.profitandloss.read",
+      "accounting.reports.balancesheet.read",
+      "accounting.reports.trialbalance.read",
     ],
   });
 
