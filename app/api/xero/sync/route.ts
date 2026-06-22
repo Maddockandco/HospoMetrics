@@ -152,43 +152,44 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      // Walk the report rows, which are nested: Section > Row > Cell
-      // Each Row has cells: [AccountName, AccountCode, Amount]
       const rowsToInsert: any[] = [];
 
       for (const section of report.rows) {
-        if (!section.rows) continue;
+        // Skip header, summary-only sections and the gross/net profit rows
+        if (!section.rows || section.rowType === RowType.Header) continue;
 
-        const sectionTitle = section.title || "Unknown";
+        const sectionTitle = section.title || "";
+
+        const isIncome = sectionTitle === "Income";
+        const isCOGS = sectionTitle === "Less Cost of Sales";
+        const isOpex = sectionTitle === "Less Operating Expenses";
+
+        // Skip sections we don't care about (gross profit, net profit rows)
+        if (!isIncome && !isCOGS && !isOpex) continue;
 
         for (const row of section.rows) {
           if (row.rowType !== RowType.Row) continue;
           const cells = row.cells || [];
 
+          // Cell 0: account name (+ attributes with account UUID)
+          // Cell 1: amount
           const accountName = cells[0]?.value || "";
-          const accountCode = cells[1]?.value || "";
-          const amountStr = cells[2]?.value || "0";
+          const accountId = cells[0]?.attributes?.[0]?.value || "";
+          const amountStr = cells[1]?.value || "0";
           const amount = parseAmount(amountStr);
 
           if (!accountName || amount === 0) continue;
 
-          // Determine if this is revenue (income section) or cost
-          const isIncome =
-            sectionTitle.toLowerCase().includes("income") ||
-            sectionTitle.toLowerCase().includes("revenue") ||
-            sectionTitle.toLowerCase().includes("sales");
-
           rowsToInsert.push({
             client_id: clientRecord.id,
             txn_date: fromDate,
-            account_code: accountCode,
+            period_end: toDate,
+            account_code: accountId, // using Xero account UUID as the code
             account_name: accountName,
             description: sectionTitle,
-            // Income = credit, Expenses = debit (standard P&L convention)
             debit: isIncome ? 0 : Math.abs(amount),
             credit: isIncome ? Math.abs(amount) : 0,
             source_type: "pl_report",
-            // Store week end date as a custom field via description suffix
           });
         }
       }
