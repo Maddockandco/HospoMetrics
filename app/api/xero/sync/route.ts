@@ -11,7 +11,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ReportWithRow, RowType } from "xero-node";
 
 // Sync starts from this date — earliest reliable data for Tangerine Trees
-const SYNC_FROM = new Date("2026-03-01");
+const SYNC_FROM = new Date("2025-05-01");
 
 function getWeeks(from: Date, to: Date): { start: Date; end: Date }[] {
   const weeks = [];
