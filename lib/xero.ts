@@ -18,13 +18,17 @@ export function getXeroClient(): XeroClient {
     clientSecret: process.env.XERO_CLIENT_SECRET,
     redirectUris: [process.env.XERO_REDIRECT_URI!],
     scopes: [
+      // Identity
       "openid",
       "profile",
       "email",
-      "accounting.transactions.read",
-      "accounting.reports.read",
-      "accounting.settings.read",
       "offline_access",
+      // Granular accounting scopes (required for apps created after March 2, 2026)
+      "accounting.journals.read",      // GL journal entries
+      "accounting.reports.read",       // P&L, Balance Sheet reports
+      "accounting.settings.read",      // Chart of accounts, tracking categories
+      "accounting.transactions.read",  // Invoices, bills, bank transactions
+      "accounting.contacts.read",      // Suppliers, customers
     ],
   });
 
