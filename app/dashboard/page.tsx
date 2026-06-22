@@ -536,31 +536,58 @@ function MonthlyView({ report }: { report: any }) {
     return new Date(parseInt(y), parseInt(mo) - 1, 1).toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
   };
 
+  const MONTHLY_TIPS: Record<string, string> = {
+    revenue: "Total sales income across all three revenue streams for the month.",
+    cogs: "Combined cost of goods sold — dry stock (restaurant food), wet stock (bar drinks), and direct hotel costs.",
+    wages: "Total staff wage cost for the month, including all departments.",
+    events: "Direct costs for artists, live events, and entertainment during the month.",
+    gross_margin: "Revenue minus COGS and wages. Shows how much the business retained after direct costs. Hospitality benchmark is typically 15–25%.",
+    net_profit: "Revenue minus all costs including operating expenses. The true monthly bottom line.",
+    wage_pct: "Wages as a percentage of monthly revenue. Hospitality benchmark is 25–35%. Above 40% consistently suggests overstaffing relative to revenue.",
+    stream_cogs: "Cost of Goods Sold for this stream — what was spent on stock to generate this stream's revenue.",
+    stream_wages: "Staff wage cost allocated to this stream based on the configured percentage split.",
+    stream_gross: "Revenue minus COGS and wages for this stream. The stream's contribution to the overall business before shared costs.",
+    stream_net: "Revenue minus all costs including a share of operating expenses. The stream's true monthly profit.",
+    stream_gm_bar: "Gross margin as a percentage of revenue. Higher = this stream is more efficient at converting revenue into profit.",
+    monthly_lump: "This month's revenue was entered as a single total in Xero rather than weekly figures. This was how Tangerine Trees recorded sales before November 2025. The total is accurate but weekly breakdown is not available.",
+    seasonal_bar: "Bar length shows this month's revenue relative to the highest month on record. Coloured bars = weekly Xero entries (accurate weekly breakdown available). Grey bars = monthly lump entries (accurate monthly total, no weekly breakdown).",
+    seasonal_trend: "All available monthly revenue history. Use this to identify seasonal patterns — which months are strong, which are quiet — to inform staffing, stock purchasing, and potential closure decisions.",
+    yoy_revenue: "How this month's total revenue compares to the same calendar month last year. Positive = business is growing year-on-year.",
+    yoy_gm: "Change in gross margin percentage versus the same month last year. Positive = cost control has improved.",
+    yoy_np: "Change in net profit percentage versus the same month last year. The most important year-on-year indicator.",
+    yoy_wage: "Change in wage percentage versus the same month last year. A negative number here is good — it means wages are a smaller proportion of revenue than a year ago.",
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Data quality notice */}
       {report.data_quality.is_monthly_lump && (
-        <div style={{ background: "#1a1e2e", border: "1px solid #3d4a63", borderRadius: 8, padding: "10px 16px", fontSize: 12, color: "#8892a8", display: "flex", alignItems: "center", gap: 8 }}>
-          <span>ℹ</span>
-          <span>{report.data_quality.note} Weekly breakdown not available for pre-November 2025 data.</span>
-        </div>
+        <Tooltip text={MONTHLY_TIPS.monthly_lump}>
+          <div style={{ background: "#1a1e2e", border: "1px solid #3d4a63", borderRadius: 8, padding: "10px 16px", fontSize: 12, color: "#8892a8", display: "flex", alignItems: "center", gap: 8, cursor: "help", width: "100%" }}>
+            <span>ℹ</span>
+            <span>{report.data_quality.note} Weekly breakdown not available for pre-November 2025 data.</span>
+            <InfoIcon />
+          </div>
+        </Tooltip>
       )}
 
       {/* Monthly totals strip */}
       <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: "18px 24px", display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12 }}>
         {[
-          { label: "Revenue", value: fmt(report.totals.revenue), color: "#f0f4ff" },
-          { label: "COGS", value: fmt(report.totals.cogs), color: "#e07b4a" },
-          { label: "Wages", value: fmt(report.totals.wages), sub: `${report.totals.wage_pct_of_revenue.toFixed(1)}% of rev`, color: report.totals.wage_pct_of_revenue > 40 ? "#e05555" : "#e8a838" },
-          { label: "Events", value: fmt(report.totals.events), color: "#9b6fd4" },
-          { label: "Gross Margin", value: `${report.totals.gross_margin_pct.toFixed(1)}%`, sub: fmt(report.totals.gross_margin), color: report.totals.gross_margin_pct >= 0 ? "#4caf78" : "#e05555" },
-          { label: "Net Profit", value: `${report.totals.net_profit_pct.toFixed(1)}%`, sub: fmt(report.totals.net_profit), color: report.totals.net_profit >= 0 ? "#4caf78" : "#e05555" },
-        ].map(({ label, value, sub, color }) => (
-          <div key={label} style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 9, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color }}>{value}</div>
-            {sub && <div style={{ fontSize: 10, color: "#6b7a99", marginTop: 2 }}>{sub}</div>}
-          </div>
+          { label: "Revenue", value: fmt(report.totals.revenue), color: "#f0f4ff", tip: MONTHLY_TIPS.revenue },
+          { label: "COGS", value: fmt(report.totals.cogs), color: "#e07b4a", tip: MONTHLY_TIPS.cogs },
+          { label: "Wages", value: fmt(report.totals.wages), sub: `${report.totals.wage_pct_of_revenue.toFixed(1)}% of rev`, color: report.totals.wage_pct_of_revenue > 40 ? "#e05555" : "#e8a838", tip: MONTHLY_TIPS.wages },
+          { label: "Events", value: fmt(report.totals.events), color: "#9b6fd4", tip: MONTHLY_TIPS.events },
+          { label: "Gross Margin", value: `${report.totals.gross_margin_pct.toFixed(1)}%`, sub: fmt(report.totals.gross_margin), color: report.totals.gross_margin_pct >= 0 ? "#4caf78" : "#e05555", tip: MONTHLY_TIPS.gross_margin },
+          { label: "Net Profit", value: `${report.totals.net_profit_pct.toFixed(1)}%`, sub: fmt(report.totals.net_profit), color: report.totals.net_profit >= 0 ? "#4caf78" : "#e05555", tip: MONTHLY_TIPS.net_profit },
+        ].map(({ label, value, sub, color, tip }) => (
+          <Tooltip key={label} text={tip}>
+            <div style={{ textAlign: "center", cursor: "help", width: "100%" }}>
+              <div style={{ fontSize: 9, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>{label}<InfoIcon /></div>
+              <div style={{ fontSize: 18, fontWeight: 700, color }}>{value}</div>
+              {sub && <div style={{ fontSize: 10, color: "#6b7a99", marginTop: 2 }}>{sub}</div>}
+            </div>
+          </Tooltip>
         ))}
       </div>
 
@@ -571,28 +598,42 @@ function MonthlyView({ report }: { report: any }) {
           return (
             <div key={s.stream} style={{ background: "#141824", border: "1px solid #252d3d", borderTop: `3px solid ${color}`, borderRadius: 12, padding: 20 }}>
               <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
-                {s.stream} {s.is_estimated && <span style={{ background: "#2a2f42", color: "#8892a8", fontSize: 9, padding: "1px 5px", borderRadius: 3, marginLeft: 4 }}>est.</span>}
+                {s.stream} {s.is_estimated && (
+                  <Tooltip text="This stream's figures include estimated splits — bar/restaurant revenue is divided using configured percentages rather than EPOS actuals.">
+                    <span style={{ background: "#2a2f42", color: "#8892a8", fontSize: 9, padding: "1px 5px", borderRadius: 3, marginLeft: 4, cursor: "help" }}>est.</span>
+                  </Tooltip>
+                )}
               </div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: "#f0f4ff", marginBottom: 14 }}>{fmt(s.revenue)}</div>
+              <Tooltip text={MONTHLY_TIPS.revenue}>
+                <div style={{ fontSize: 26, fontWeight: 700, color: "#f0f4ff", marginBottom: 14, cursor: "help" }}>{fmt(s.revenue)}</div>
+              </Tooltip>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 {[
-                  { label: "COGS", value: s.cogs, color: "#e07b4a" },
-                  { label: "Wages", value: s.wages, color: "#e8a838" },
-                  { label: "Gross Margin", value: s.gross_margin, color: s.gross_margin >= 0 ? "#4caf78" : "#e05555" },
-                  { label: "Net Profit", value: s.net_profit, color: s.net_profit >= 0 ? "#4caf78" : "#e05555" },
-                ].map(({ label, value, color: c }) => (
+                  { label: "COGS", value: s.cogs, color: "#e07b4a", tip: MONTHLY_TIPS.stream_cogs },
+                  { label: "Wages", value: s.wages, color: "#e8a838", tip: MONTHLY_TIPS.stream_wages },
+                  { label: "Gross Margin", value: s.gross_margin, color: s.gross_margin >= 0 ? "#4caf78" : "#e05555", tip: MONTHLY_TIPS.stream_gross },
+                  { label: "Net Profit", value: s.net_profit, color: s.net_profit >= 0 ? "#4caf78" : "#e05555", tip: MONTHLY_TIPS.stream_net },
+                ].map(({ label, value, color: c, tip }) => (
                   <div key={label}>
-                    <div style={{ fontSize: 9, color: "#6b7a99", marginBottom: 2 }}>{label}</div>
+                    <div style={{ fontSize: 9, color: "#6b7a99", marginBottom: 2 }}>
+                      <Tooltip text={tip}><span style={{ display: "inline-flex", alignItems: "center", cursor: "help" }}>{label}<InfoIcon /></span></Tooltip>
+                    </div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: c }}>{fmt(value)}</div>
                   </div>
                 ))}
               </div>
               <div style={{ borderTop: "1px solid #1e2535", paddingTop: 10, marginTop: 12 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                  <span style={{ fontSize: 9, color: "#6b7a99" }}>Gross Margin %</span>
+                  <Tooltip text={MONTHLY_TIPS.stream_gm_bar}>
+                    <span style={{ fontSize: 9, color: "#6b7a99", cursor: "help", display: "inline-flex", alignItems: "center" }}>Gross Margin %<InfoIcon /></span>
+                  </Tooltip>
                   <span style={{ fontSize: 11, fontWeight: 600, color: s.gross_margin_pct >= 0 ? "#4caf78" : "#e05555" }}>{s.gross_margin_pct.toFixed(1)}%</span>
                 </div>
-                <Bar value={s.gross_margin_pct} max={100} color={s.gross_margin_pct >= 0 ? "#4caf78" : "#e05555"} height={5} />
+                <Tooltip text={MONTHLY_TIPS.stream_gm_bar}>
+                  <div style={{ width: "100%", cursor: "help" }}>
+                    <Bar value={s.gross_margin_pct} max={100} color={s.gross_margin_pct >= 0 ? "#4caf78" : "#e05555"} height={5} />
+                  </div>
+                </Tooltip>
               </div>
             </div>
           );
@@ -603,37 +644,47 @@ function MonthlyView({ report }: { report: any }) {
       {report.yoy.has_data && (
         <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: 24 }}>
           <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 18 }}>
-            <TipLabel label="Year-on-Year" tipKey="yoy" />
+            <TipLabel label="Year-on-Year Comparison" tipKey="yoy" />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
             {[
-              { label: "Revenue", current: fmt(report.totals.revenue), yago: fmt(report.yoy.year_ago_totals.revenue), change: report.yoy.revenue },
-              { label: "Gross Margin %", current: `${report.totals.gross_margin_pct.toFixed(1)}%`, yago: `${report.yoy.year_ago_totals.gross_margin_pct.toFixed(1)}%`, change: report.yoy.gross_margin_pct },
-              { label: "Net Profit %", current: `${report.totals.net_profit_pct.toFixed(1)}%`, yago: `${report.yoy.year_ago_totals.net_profit_pct.toFixed(1)}%`, change: report.yoy.net_profit_pct },
-              { label: "Wage %", current: `${report.totals.wage_pct_of_revenue.toFixed(1)}%`, yago: `${report.yoy.year_ago_totals.wage_pct_of_revenue.toFixed(1)}%`, change: report.yoy.wage_pct !== null ? -(report.yoy.wage_pct) : null },
-            ].map(({ label, current, yago, change }) => (
-              <div key={label} style={{ background: "#0d1117", borderRadius: 8, padding: 14, border: "1px solid #1e2535" }}>
-                <div style={{ fontSize: 9, color: "#6b7a99", marginBottom: 6, textTransform: "uppercase" }}>{label}</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 4 }}>{current}</div>
-                <div style={{ fontSize: 11, color: "#4a5a7a", marginBottom: 6 }}>Year ago: {yago}</div>
-                {change !== null && <StatPill value={change} />}
-              </div>
+              { label: "Revenue", current: fmt(report.totals.revenue), yago: fmt(report.yoy.year_ago_totals.revenue), change: report.yoy.revenue, tip: MONTHLY_TIPS.yoy_revenue },
+              { label: "Gross Margin %", current: `${report.totals.gross_margin_pct.toFixed(1)}%`, yago: `${report.yoy.year_ago_totals.gross_margin_pct.toFixed(1)}%`, change: report.yoy.gross_margin_pct, tip: MONTHLY_TIPS.yoy_gm },
+              { label: "Net Profit %", current: `${report.totals.net_profit_pct.toFixed(1)}%`, yago: `${report.yoy.year_ago_totals.net_profit_pct.toFixed(1)}%`, change: report.yoy.net_profit_pct, tip: MONTHLY_TIPS.yoy_np },
+              { label: "Wage %", current: `${report.totals.wage_pct_of_revenue.toFixed(1)}%`, yago: `${report.yoy.year_ago_totals.wage_pct_of_revenue.toFixed(1)}%`, change: report.yoy.wage_pct !== null ? -(report.yoy.wage_pct) : null, tip: MONTHLY_TIPS.yoy_wage },
+            ].map(({ label, current, yago, change, tip }) => (
+              <Tooltip key={label} text={tip}>
+                <div style={{ background: "#0d1117", borderRadius: 8, padding: 14, border: "1px solid #1e2535", cursor: "help", width: "100%" }}>
+                  <div style={{ fontSize: 9, color: "#6b7a99", marginBottom: 6, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 3 }}>{label}<InfoIcon /></div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 4 }}>{current}</div>
+                  <div style={{ fontSize: 11, color: "#4a5a7a", marginBottom: 6 }}>Year ago: {yago}</div>
+                  {change !== null && <StatPill value={change} />}
+                </div>
+              </Tooltip>
             ))}
           </div>
         </div>
       )}
 
-      {/* Seasonal revenue chart — all months */}
+      {/* Seasonal revenue chart */}
       <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: 24 }}>
-        <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Seasonal Revenue Trend</div>
-        <div style={{ fontSize: 11, color: "#4a5a7a", marginBottom: 18 }}>All available history — grey bars = monthly lump entry, coloured = weekly actuals</div>
+        <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
+          <Tooltip text={MONTHLY_TIPS.seasonal_trend}>
+            <span style={{ display: "inline-flex", alignItems: "center", cursor: "help" }}>Seasonal Revenue Trend<InfoIcon /></span>
+          </Tooltip>
+        </div>
+        <div style={{ fontSize: 11, color: "#4a5a7a", marginBottom: 18 }}>
+          <Tooltip text={MONTHLY_TIPS.seasonal_bar}>
+            <span style={{ cursor: "help" }}>All available history — <span style={{ color: "#3d5a7a" }}>■</span> weekly actuals &nbsp; <span style={{ color: "#2a3048" }}>■</span> monthly lump entry<InfoIcon /></span>
+          </Tooltip>
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(report.seasonal_trend || []).map((row: any) => (
             <div key={row.month} style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ fontSize: 10, color: row.month === report.month ? "#f0f4ff" : "#6b7a99", minWidth: 48, fontWeight: row.month === report.month ? 700 : 400 }}>
                 {formatMonth(row.month)}
               </div>
-              <Tooltip text={`${formatMonth(row.month)}: ${fmt(row.revenue)} revenue, ${row.gross_margin_pct.toFixed(1)}% gross margin${row.is_monthly_lump ? " (monthly lump)" : ""}`}>
+              <Tooltip text={`${formatMonth(row.month)}: ${fmt(row.revenue)} revenue, ${row.gross_margin_pct.toFixed(1)}% gross margin${row.is_monthly_lump ? " — monthly lump entry (accurate total, no weekly breakdown)" : " — weekly actuals"}`}>
                 <div style={{ flex: 1, cursor: "help" }}>
                   <Bar
                     value={row.revenue}
@@ -644,7 +695,9 @@ function MonthlyView({ report }: { report: any }) {
                 </div>
               </Tooltip>
               <div style={{ fontSize: 11, color: row.month === report.month ? "#f0f4ff" : "#6b7a99", minWidth: 70, textAlign: "right" }}>{fmt(row.revenue)}</div>
-              <div style={{ minWidth: 50, textAlign: "right" }}><StatPill value={row.gross_margin_pct} /></div>
+              <Tooltip text={`Gross margin for ${formatMonth(row.month)}: ${row.gross_margin_pct.toFixed(1)}%`}>
+                <div style={{ minWidth: 50, textAlign: "right", cursor: "help" }}><StatPill value={row.gross_margin_pct} /></div>
+              </Tooltip>
             </div>
           ))}
         </div>
@@ -653,14 +706,19 @@ function MonthlyView({ report }: { report: any }) {
       {/* Opex breakdown */}
       {report.opex.length > 0 && (
         <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: 24 }}>
-          <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>Operating Expenses</div>
+          <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
+            <TipLabel label="Operating Expenses" tipKey="opex" />
+          </div>
+          <div style={{ fontSize: 11, color: "#4a5a7a", marginBottom: 16 }}>Monthly total — shared equally across Bar, Restaurant and Hotel</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {report.opex.map((line: any) => (
-              <div key={line.name} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ flex: 1, fontSize: 12, color: "#8892a8" }}>{line.name}</div>
-                <div style={{ width: 200 }}><Bar value={line.amount} max={Math.max(...report.opex.map((o: any) => o.amount))} color="#4a5a7a" height={5} /></div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#f0f4ff", minWidth: 70, textAlign: "right" }}>{fmt(line.amount)}</div>
-              </div>
+              <Tooltip key={line.name} text={`${line.name}: ${fmt(line.amount)} this month — ${((line.amount / report.opex.reduce((s: number, l: any) => s + l.amount, 0)) * 100).toFixed(1)}% of total operating expenses`}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", cursor: "help" }}>
+                  <div style={{ flex: 1, fontSize: 12, color: "#8892a8" }}>{line.name}</div>
+                  <div style={{ width: 200 }}><Bar value={line.amount} max={Math.max(...report.opex.map((o: any) => o.amount))} color="#4a5a7a" height={5} /></div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#f0f4ff", minWidth: 70, textAlign: "right" }}>{fmt(line.amount)}</div>
+                </div>
+              </Tooltip>
             ))}
             <div style={{ borderTop: "1px solid #252d3d", paddingTop: 10, display: "flex", justifyContent: "space-between" }}>
               <span style={{ fontSize: 11, color: "#6b7a99" }}>Total Opex</span>
@@ -672,6 +730,7 @@ function MonthlyView({ report }: { report: any }) {
     </div>
   );
 }
+
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 export default function DashboardPage() {
