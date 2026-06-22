@@ -71,15 +71,16 @@ export async function GET(req: NextRequest) {
   }
 
   const mappingByAccount: Record<string, any> = {};
-  for (const m of mappings) mappingByAccount[m.match_value] = m;
+  for (const m of mappings!) mappingByAccount[m.match_value] = m;
 
-  const sharedStream = streams.find((s: any) => s.name === "Shared");
-  const mainStreams = streams.filter((s: any) => s.name !== "Shared");
+  const safeStreams = streams!;
+  const sharedStream = safeStreams.find((s: any) => s.name === "Shared");
+  const mainStreams = safeStreams.filter((s: any) => s.name !== "Shared");
 
   // ── Aggregate monthly rows into stream buckets ────────────────────────
   function aggregateMonth(rows: any[], rulesForPeriod: any[]) {
     const buckets: Record<string, any> = {};
-    for (const s of streams) {
+    for (const s of safeStreams) {
       buckets[s.id] = { stream: s.name, revenue: 0, cogs: 0, wages: 0, events: 0, overhead: 0, is_estimated: false };
     }
 
