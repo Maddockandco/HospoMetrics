@@ -30,7 +30,18 @@ export default function EposUploadPage() {
   const [result, setResult] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleUpload(e: React.FormEvent) {
+  const [dragging, setDragging] = useState(false);
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped && dropped.name.endsWith(".csv")) {
+      setFile(dropped);
+    } else {
+      setError("Please drop a CSV file");
+    }
+  }
     e.preventDefault();
     if (!file) return;
     setLoading(true);
@@ -125,15 +136,18 @@ export default function EposUploadPage() {
               </label>
               <div
                 style={{
-                  border: `2px dashed ${file ? "#e8a838" : "#252d3d"}`,
+                  border: `2px dashed ${dragging ? "#e8a838" : file ? "#e8a838" : "#252d3d"}`,
                   borderRadius: 8,
-                  padding: "24px 16px",
+                  padding: "32px 16px",
                   textAlign: "center",
                   cursor: "pointer",
-                  background: file ? "#1a1e14" : "#0d1117",
+                  background: dragging ? "#1a2010" : file ? "#1a1e14" : "#0d1117",
                   transition: "all 0.2s",
                 }}
                 onClick={() => document.getElementById("csv-input")?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
               >
                 <input
                   id="csv-input"
@@ -142,16 +156,21 @@ export default function EposUploadPage() {
                   style={{ display: "none" }}
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
-                {file ? (
+                {dragging ? (
+                  <>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>📥</div>
+                    <div style={{ fontSize: 13, color: "#e8a838", fontWeight: 600 }}>Drop it here</div>
+                  </>
+                ) : file ? (
                   <>
                     <div style={{ fontSize: 20, marginBottom: 6 }}>✓</div>
                     <div style={{ fontSize: 13, color: "#e8a838", fontWeight: 600 }}>{file.name}</div>
-                    <div style={{ fontSize: 11, color: "#6b7a99", marginTop: 4 }}>{(file.size / 1024).toFixed(1)} KB — click to change</div>
+                    <div style={{ fontSize: 11, color: "#6b7a99", marginTop: 4 }}>{(file.size / 1024).toFixed(1)} KB — click or drop to change</div>
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: 24, marginBottom: 8 }}>📄</div>
-                    <div style={{ fontSize: 13, color: "#6b7a99" }}>Click to select CSV file</div>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>📄</div>
+                    <div style={{ fontSize: 13, color: "#6b7a99" }}>Drag & drop CSV here, or click to select</div>
                     <div style={{ fontSize: 11, color: "#4a5a7a", marginTop: 4 }}>WetAndDry_*.csv from EPOS Now</div>
                   </>
                 )}
