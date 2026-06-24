@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
   // Load all known account mappings so we can detect unmapped accounts
   const { data: knownMappings } = await supabaseAdmin
     .from("stream_mappings")
-    .select("match_value, account_name")
+    .select("match_value")
     .eq("client_id", clientRecord.id);
 
   const knownAccountCodes = new Set((knownMappings || []).map((m) => m.match_value));
