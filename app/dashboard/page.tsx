@@ -488,6 +488,9 @@ function AlertsView({ report }: { report: WeeklyReport }) {
           </div>
         </div>
       )}
+
+      {/* Spend spikes */}
+      <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: 24 }}>
         <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}><TipLabel label="Spend Spikes" tipKey="spike" /></div>
         <div style={{ fontSize: 11, color: "#4a5a7a", marginBottom: 18 }}>Cost lines more than 25% above their 4-week average</div>
         {report.spikes.length === 0 ? (
