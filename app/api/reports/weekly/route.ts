@@ -21,19 +21,23 @@ function toStr(d: Date): string {
 }
 
 // Compute stream P&L for a set of GL rows using mappings + allocation rules
+// eposSplit: if provided and reconciled, overrides the estimated 50/50 split
 function computeStreams(
   glRows: any[],
   streams: any[],
   mappingByAccount: Record<string, any>,
   allocRules: any[],
   weeklyWageAvg: number,
-  totalOpex: number
+  totalOpex: number,
+  eposSplit?: { bar: number; restaurant: number; is_reconciled: boolean } | null
 ) {
   const result: Record<string, any> = {};
   for (const s of streams) {
     result[s.id] = { stream: s.name, revenue: 0, cogs: 0, wages: 0, overhead: 0, events: 0, is_estimated: false };
   }
   const sharedStream = streams.find((s) => s.name === "Shared");
+  const barStream = streams.find((s) => s.name === "Bar");
+  const restaurantStream = streams.find((s) => s.name === "Restaurant");
 
   for (const row of glRows) {
     const mapping = mappingByAccount[row.account_code];
@@ -45,11 +49,18 @@ function computeStreams(
 
     if (costType === "revenue") {
       if (streamId === sharedStream?.id) {
-        const splitRules = allocRules.filter((r) => r.rule_type === "retrofit_sales_split");
-        for (const rule of splitRules) {
-          if (result[rule.revenue_stream_id]) {
-            result[rule.revenue_stream_id].revenue += amount * rule.percentage;
-            result[rule.revenue_stream_id].is_estimated = true;
+        // Use EPOS actuals if reconciled, otherwise fall back to allocation rules
+        if (eposSplit?.is_reconciled && barStream && restaurantStream) {
+          result[barStream.id].revenue += eposSplit.bar;
+          result[restaurantStream.id].revenue += eposSplit.restaurant;
+          // Not estimated — using EPOS actuals
+        } else {
+          const splitRules = allocRules.filter((r) => r.rule_type === "retrofit_sales_split");
+          for (const rule of splitRules) {
+            if (result[rule.revenue_stream_id]) {
+              result[rule.revenue_stream_id].revenue += amount * rule.percentage;
+              result[rule.revenue_stream_id].is_estimated = true;
+            }
           }
         }
       } else {
@@ -166,6 +177,8 @@ export async function GET(req: NextRequest) {
     { data: mappings },
     { data: streams },
     { data: allocRules },
+    { data: eposSalesRow },
+    { data: eposReconRow },
   ] = await Promise.all([
     // Current week — exclude monthly lump rows
     supabaseAdmin.from("gl_transactions").select("*").eq("client_id", clientId)
@@ -197,6 +210,11 @@ export async function GET(req: NextRequest) {
     supabaseAdmin.from("allocation_rules").select("*, revenue_streams(name)")
       .eq("client_id", clientId).lte("effective_from", weekStartStr)
       .or("effective_to.is.null,effective_to.gte." + weekStartStr),
+    // EPOS reconciliation for current week
+    supabaseAdmin.from("epos_sales").select("wet_sales_ex_vat, dry_sales_ex_vat")
+      .eq("client_id", clientId).eq("week_start", weekStartStr).maybeSingle(),
+    supabaseAdmin.from("epos_reconciliation").select("is_reconciled, difference")
+      .eq("client_id", clientId).eq("week_start", weekStartStr).maybeSingle(),
   ]);
 
   if (!glRows || !mappings || !streams || !allocRules) {
@@ -228,8 +246,15 @@ export async function GET(req: NextRequest) {
   const priorTotalOpex = Object.values(getOpex(priorWeekRows || [])).reduce((s, l) => s + l.amount, 0);
   const yearAgoTotalOpex = Object.values(getOpex(yearAgoRows || [])).reduce((s, l) => s + l.amount, 0);
 
+  // Build EPOS split if reconciled
+  const eposSplit = (eposSalesRow && eposReconRow?.is_reconciled) ? {
+    bar: eposSalesRow.wet_sales_ex_vat,       // Wet = Bar
+    restaurant: eposSalesRow.dry_sales_ex_vat, // Dry = Restaurant
+    is_reconciled: true,
+  } : null;
+
   // ── Current week ────────────────────────────────────────────────────
-  const streamResults = computeStreams(glRows, streams, mappingByAccount, allocRules, weeklyWageAvg, totalOpex);
+  const streamResults = computeStreams(glRows, streams, mappingByAccount, allocRules, weeklyWageAvg, totalOpex, eposSplit);
   const totals = sumTotals(streamResults);
 
   // ── Prior week ──────────────────────────────────────────────────────
@@ -378,6 +403,11 @@ export async function GET(req: NextRequest) {
       net_profit: Math.round(weeklyTotals[date].net_profit * 100) / 100,
     })),
     is_estimated: streamResults.some((r) => r.is_estimated),
+    epos_status: eposSplit?.is_reconciled
+      ? { source: "epos_actuals", message: "Bar/Restaurant split from reconciled EPOS Now data" }
+      : eposReconRow && !eposReconRow.is_reconciled
+      ? { source: "estimated", message: `EPOS data uploaded but not reconciled — difference of £${eposReconRow.difference?.toFixed(2)}` }
+      : { source: "estimated", message: "No EPOS data uploaded for this week — using estimated 50/50 split" },
     wage_basis: {
       type: "4_week_rolling_average",
       weekly_average: Math.round(weeklyWageAvg * 100) / 100,
