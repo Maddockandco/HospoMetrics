@@ -43,8 +43,8 @@ export async function GET(req: NextRequest) {
   // Pull one week of P&L — first week of March 2026
   const response = await xero.accountingApi.getReportProfitAndLoss(
     clientRecord!.xero_tenant_id!,
-    "2026-03-02",
-    "2026-03-08",
+    "2026-06-15",
+    "2026-06-21",
     undefined,
     undefined,
     undefined,
