@@ -179,6 +179,7 @@ export async function GET(req: NextRequest) {
     { data: allocRules },
     { data: eposSalesRow },
     { data: eposReconRow },
+    { data: unmappedAccounts },
   ] = await Promise.all([
     // Current week — exclude monthly lump rows
     supabaseAdmin.from("gl_transactions").select("*").eq("client_id", clientId)
@@ -215,6 +216,9 @@ export async function GET(req: NextRequest) {
       .eq("client_id", clientId).eq("week_start", weekStartStr).maybeSingle(),
     supabaseAdmin.from("epos_reconciliation").select("is_reconciled, difference")
       .eq("client_id", clientId).eq("week_start", weekStartStr).maybeSingle(),
+    // Unmapped accounts (unresolved)
+    supabaseAdmin.from("unmapped_accounts").select("*")
+      .eq("client_id", clientId).eq("is_resolved", false),
   ]);
 
   if (!glRows || !mappings || !streams || !allocRules) {
@@ -408,6 +412,7 @@ export async function GET(req: NextRequest) {
       : eposReconRow && !eposReconRow.is_reconciled
       ? { source: "estimated", message: `EPOS data uploaded but not reconciled — difference of £${eposReconRow.difference?.toFixed(2)}` }
       : { source: "estimated", message: "No EPOS data uploaded for this week — using estimated 50/50 split" },
+    unmapped_accounts: unmappedAccounts || [],
     wage_basis: {
       type: "4_week_rolling_average",
       weekly_average: Math.round(weeklyWageAvg * 100) / 100,
