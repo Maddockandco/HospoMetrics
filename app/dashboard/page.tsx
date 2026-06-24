@@ -837,6 +837,13 @@ export default function DashboardPage() {
             ))}
           </div>
 
+          <div style={{ padding: "0 16px", marginBottom: 20 }}>
+            <div style={{ fontSize: 9, color: "#4a5a7a", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Data</div>
+            <a href="/epos" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 12px", background: "transparent", borderRadius: 8, color: "#6b7a99", fontSize: 13, textDecoration: "none", marginBottom: 2 }}>
+              📤 EPOS Import
+            </a>
+          </div>
+
           {/* Rolling average toggle — weekly only */}
           {activeNav === "Weekly" && (
             <div style={{ padding: "0 16px", marginBottom: 20 }}>
