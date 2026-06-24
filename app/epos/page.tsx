@@ -42,6 +42,8 @@ export default function EposUploadPage() {
       setError("Please drop a CSV file");
     }
   }
+
+  async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
     setLoading(true);
