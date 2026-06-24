@@ -125,6 +125,15 @@ export async function GET(req: NextRequest) {
   const inserted: string[] = [];
   const errors: string[] = [];
 
+  // Load all known account mappings so we can detect unmapped accounts
+  const { data: knownMappings } = await supabaseAdmin
+    .from("stream_mappings")
+    .select("match_value, account_name")
+    .eq("client_id", clientRecord.id);
+
+  const knownAccountCodes = new Set((knownMappings || []).map((m) => m.match_value));
+  const newUnmappedAccounts: Record<string, { name: string; section: string; date: string }> = {};
+
   for (const week of weeks) {
     const fromDate = formatDate(week.start);
     const toDate = formatDate(week.end);
@@ -180,6 +189,15 @@ export async function GET(req: NextRequest) {
 
           if (!accountName || amount === 0) continue;
 
+          // Failsafe: flag any account not in stream_mappings
+          if (accountId && !knownAccountCodes.has(accountId)) {
+            newUnmappedAccounts[accountId] = {
+              name: accountName,
+              section: sectionTitle,
+              date: fromDate,
+            };
+          }
+
           rowsToInsert.push({
             client_id: clientRecord.id,
             txn_date: fromDate,
@@ -214,10 +232,50 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Write unmapped accounts to the database
+  const unmappedList = Object.entries(newUnmappedAccounts);
+  if (unmappedList.length > 0) {
+    for (const [accountCode, { name, section, date }] of unmappedList) {
+      // Upsert — update last_seen_date and increment times_seen if already exists
+      const { data: existing } = await supabaseAdmin
+        .from("unmapped_accounts")
+        .select("id, times_seen")
+        .eq("client_id", clientRecord.id)
+        .eq("account_code", accountCode)
+        .single();
+
+      if (existing) {
+        await supabaseAdmin
+          .from("unmapped_accounts")
+          .update({
+            last_seen_date: date,
+            times_seen: (existing.times_seen || 1) + 1,
+            is_resolved: false, // re-flag if it was marked resolved but reappeared
+          })
+          .eq("id", existing.id);
+      } else {
+        await supabaseAdmin.from("unmapped_accounts").insert({
+          client_id: clientRecord.id,
+          account_code: accountCode,
+          account_name: name,
+          section,
+          first_seen_date: date,
+          last_seen_date: date,
+          times_seen: 1,
+          is_resolved: false,
+        });
+      }
+    }
+  }
+
   return NextResponse.json({
     success: true,
     weeks_synced: inserted.length,
     inserted,
     errors,
+    unmapped_accounts: unmappedList.length > 0 ? unmappedList.map(([code, { name, section }]) => ({ code, name, section })) : [],
+    unmapped_warning: unmappedList.length > 0
+      ? `⚠ ${unmappedList.length} account(s) found in Xero P&L with no stream mapping — check Alerts tab`
+      : null,
   });
 }
