@@ -26,6 +26,7 @@ interface WeeklyReport {
   rolling_avg: { streams: StreamData[]; totals: Totals; weeks_included: number };
   comparisons: Comparisons;
   opex: OpexLine[]; spikes: Spike[]; trend: TrendPoint[];
+  unmapped_accounts: { account_code: string; account_name: string; section: string; first_seen_date: string }[];
   is_estimated: boolean;
   wage_basis: { type: string; weekly_average: number; four_week_total: number };
 }
@@ -451,9 +452,42 @@ function TrendsView({ report }: { report: WeeklyReport }) {
 
 // ── Alerts View ───────────────────────────────────────────────────────────────
 function AlertsView({ report }: { report: WeeklyReport }) {
+  const unmapped = report.unmapped_accounts || [];
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: 24 }}>
+
+      {/* Unmapped accounts — shown first as highest priority */}
+      {unmapped.length > 0 && (
+        <div style={{ background: "#141824", border: "1px solid #e05555", borderRadius: 12, padding: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 16 }}>🚨</span>
+            <div style={{ fontSize: 10, color: "#e05555", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}>Unmapped Accounts Detected</div>
+          </div>
+          <div style={{ fontSize: 12, color: "#6b7a99", marginBottom: 18 }}>
+            These accounts appeared in the Xero P&L but have no stream mapping — their figures are being excluded from all reports until mapped. Contact your accountant to assign them to Bar, Restaurant, Hotel or Shared.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {unmapped.map((acc) => (
+              <div key={acc.account_code} style={{ background: "#1e1a1a", border: "1px solid #4a2020", borderLeft: "3px solid #e05555", borderRadius: 8, padding: "12px 16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#f0f4ff", marginBottom: 4 }}>{acc.account_name}</div>
+                    <div style={{ fontSize: 11, color: "#6b7a99" }}>Section: {acc.section}</div>
+                    <div style={{ fontSize: 11, color: "#6b7a99" }}>First seen: {new Date(acc.first_seen_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</div>
+                  </div>
+                  <div style={{ background: "#2e1a1a", color: "#e05555", borderRadius: 6, padding: "3px 8px", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>
+                    Not mapped
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 16, fontSize: 12, color: "#4a5a7a", borderTop: "1px solid #252d3d", paddingTop: 12 }}>
+            To resolve: run the SQL in Supabase to add these accounts to <code style={{ background: "#1e2535", padding: "1px 5px", borderRadius: 3 }}>stream_mappings</code>, then re-sync Xero. Once mapped, they'll disappear from this list.
+          </div>
+        </div>
+      )}
         <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}><TipLabel label="Spend Spikes" tipKey="spike" /></div>
         <div style={{ fontSize: 11, color: "#4a5a7a", marginBottom: 18 }}>Cost lines more than 25% above their 4-week average</div>
         {report.spikes.length === 0 ? (
@@ -830,8 +864,10 @@ export default function DashboardPage() {
             {NAV.map((item) => (
               <button key={item} onClick={() => setActiveNav(item)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 12px", background: activeNav === item ? "#1e2535" : "transparent", border: "none", borderRadius: 8, color: activeNav === item ? "#f0f4ff" : "#6b7a99", fontSize: 13, fontWeight: activeNav === item ? 600 : 400, cursor: "pointer", marginBottom: 2, textAlign: "left" }}>
                 {item === "Weekly" ? "📊" : item === "Monthly" ? "📅" : item === "Trends" ? "📈" : "🔔"} {item}
-                {item === "Alerts" && report && report.spikes.length > 0 && (
-                  <span style={{ marginLeft: "auto", background: "#e05555", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10 }}>{report.spikes.length}</span>
+                {item === "Alerts" && report && (report.spikes.length > 0 || report.unmapped_accounts?.length > 0) && (
+                  <span style={{ marginLeft: "auto", background: report.unmapped_accounts?.length > 0 ? "#e05555" : "#e8a838", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10 }}>
+                    {(report.spikes.length || 0) + (report.unmapped_accounts?.length || 0)}
+                  </span>
                 )}
               </button>
             ))}
