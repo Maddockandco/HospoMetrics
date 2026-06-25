@@ -9,7 +9,7 @@ import DailyCashUp from "@/components/DailyCashUp";
 interface StreamData {
   stream: string; revenue: number; cogs: number; wages: number; events: number;
   overhead: number; gross_margin: number; gross_margin_pct: number;
-  net_profit: number; net_profit_pct: number; wage_pct_of_revenue: number; is_estimated: boolean;
+  net_profit: number; net_profit_pct: number; wage_pct_of_revenue: number; is_estimated: boolean; epos_pending?: boolean;
 }
 interface OpexLine { name: string; amount: number; }
 interface Spike { account: string; amount: number; avg: number; pct_above: number; }
@@ -165,11 +165,14 @@ function StreamCard({ data, maxRevenue, isRolling }: { data: StreamData; maxReve
         <div>
           <div style={{ fontSize: 10, color: "#6b7a99", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 3 }}>
             {data.stream}
-            {data.is_estimated && <span style={{ background: "#2a2f42", color: "#8892a8", fontSize: 9, padding: "1px 5px", borderRadius: 3, marginLeft: 4 }}>est.</span>}
+            {data.is_estimated && !data.epos_pending && <span style={{ background: "#2a2f42", color: "#8892a8", fontSize: 9, padding: "1px 5px", borderRadius: 3, marginLeft: 4 }}>est.</span>}
+            {data.epos_pending && <span style={{ background: "#2e1a1a", color: "#e05555", fontSize: 9, padding: "1px 5px", borderRadius: 3, marginLeft: 4 }}>EPOS pending</span>}
             {isRolling && <span style={{ background: "#1a2535", color: "#5b8fa8", fontSize: 9, padding: "1px 5px", borderRadius: 3, marginLeft: 4 }}>4wk avg</span>}
           </div>
-          <Tooltip text={TOOLTIPS.revenue}>
-            <div style={{ fontSize: 26, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em", cursor: "help" }}>{fmt(data.revenue)}</div>
+          <Tooltip text={data.epos_pending ? "Revenue hidden until EPOS CSV is uploaded and reconciled for this week." : TOOLTIPS.revenue}>
+            <div style={{ fontSize: data.epos_pending ? 14 : 26, fontWeight: 700, color: data.epos_pending ? "#e05555" : "#f0f4ff", letterSpacing: "-0.02em", cursor: "help", marginTop: data.epos_pending ? 4 : 0 }}>
+              {data.epos_pending ? "Awaiting EPOS upload" : fmt(data.revenue)}
+            </div>
           </Tooltip>
           <div style={{ fontSize: 10, color: "#6b7a99", marginTop: 1 }}>revenue</div>
         </div>
