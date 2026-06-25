@@ -56,6 +56,14 @@ function computeStreams(
   const barStream = streams.find((s) => s.name === "Bar");
   const restaurantStream = streams.find((s) => s.name === "Restaurant");
 
+  // Pre-flag Bar and Restaurant as epos_pending if no reconciled EPOS data
+  // This is set before the row loop so it never gets overwritten mid-loop
+  const eposPending = !eposSplit?.is_reconciled;
+  if (eposPending) {
+    if (barStream && result[barStream.id]) result[barStream.id].epos_pending = true;
+    if (restaurantStream && result[restaurantStream.id]) result[restaurantStream.id].epos_pending = true;
+  }
+
   for (const row of glRows) {
     const mapping = mappingByAccount[row.account_code];
     if (!mapping) continue;
@@ -83,12 +91,11 @@ function computeStreams(
 
         if (isBarStream || isRestaurantStream) {
           if (eposSplit?.is_reconciled) {
-            // Only add if not already added via shared stream path
             // Direct mappings use EPOS actuals — skip Xero figure, EPOS split already applied above
           } else {
-            // Block revenue, flag as pending
+            // Block revenue, flag as pending (use || to avoid resetting if already set)
             result[streamId].epos_pending = true;
-            // Revenue stays 0
+            result[streamId].revenue = 0; // ensure revenue stays 0 regardless of row order
           }
         } else {
           // Hotel and any other directly-mapped streams — show from Xero
