@@ -880,6 +880,9 @@ export default function DashboardPage() {
             <a href="/cashup" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 12px", background: "transparent", borderRadius: 8, color: "#6b7a99", fontSize: 13, textDecoration: "none", marginBottom: 2 }}>
               💵 Staff Cash Up
             </a>
+            <a href="/caterbook" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 12px", background: "transparent", borderRadius: 8, color: "#6b7a99", fontSize: 13, textDecoration: "none", marginBottom: 2 }}>
+              🏨 Caterbook Import
+            </a>
           </div>
 
           {/* Rolling average toggle — weekly only */}
