@@ -1,16 +1,19 @@
-// app/api/epos/upload/route.ts
+// 📁 app/api/epos/upload/route.ts
 // Accepts a multipart POST with:
-//   - file: the EPOS Now Wet and Dry CSV export
+//   - file:      the EPOS Now Wet and Dry CSV export
+//   - misc_file: the EPOS Now Misc Sales CSV export (optional but needed for full reconciliation)
 //   - week_start: ISO date string for the Monday of that week (e.g. 2026-06-16)
-// Parses the CSV, reconciles the total against Xero, and stores the result.
-// Route: POST /api/epos/upload
-// Access: owner only
+//
+// Reconciliation logic:
+//   Bar revenue    = Wet + Misc  (both map to Bar revenue(WetStock) in Xero)
+//   Restaurant     = Dry
+//   Sense check    = Wet + Misc + Dry === Xero total (within £1 tolerance)
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
-const RECONCILIATION_TOLERANCE = 1.00; // £1 tolerance for rounding differences
+const RECONCILIATION_TOLERANCE = 1.00;
 
 interface EposRow {
   name: string;
@@ -22,11 +25,8 @@ interface EposRow {
 }
 
 function parseEposCsv(csvText: string): EposRow[] {
-  // Strip BOM if present
   const clean = csvText.replace(/^\uFEFF/, "").trim();
   const lines = clean.split(/\r?\n/).filter(Boolean);
-
-  // Skip header row
   const dataLines = lines.slice(1);
 
   return dataLines.map((line) => {
@@ -42,79 +42,118 @@ function parseEposCsv(csvText: string): EposRow[] {
   });
 }
 
+// For the Misc CSV — sum all non-header, non-total rows' SalesExcVAT
+function parseMiscCsv(csvText: string): { total: number; qty: number } {
+  const clean = csvText.replace(/^\uFEFF/, "").trim();
+  const lines = clean.split(/\r?\n/).filter(Boolean);
+  const dataLines = lines.slice(1); // skip header
+
+  let total = 0;
+  let qty = 0;
+
+  for (const line of dataLines) {
+    const cols = line.split(",");
+    const name = cols[0]?.trim().toLowerCase() || "";
+    if (name.startsWith("total")) continue; // skip total row
+    total += parseFloat(cols[2] || "0"); // SalesExcVAT
+    qty += parseInt(cols[1] || "0");
+  }
+
+  return { total: Math.round(total * 100) / 100, qty };
+}
+
 export async function POST(req: NextRequest) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Get client record
   const { data: clientUserRecord } = await supabaseAdmin
     .from("client_users").select("client_id, role")
     .eq("user_id", user.id).eq("role", "owner").single();
   if (!clientUserRecord) return NextResponse.json({ error: "Owner access required" }, { status: 403 });
   const clientId = clientUserRecord.client_id;
 
-  // Parse multipart form
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
+  const miscFile = formData.get("misc_file") as File | null;
   const weekStart = formData.get("week_start") as string | null;
 
   if (!file || !weekStart) {
     return NextResponse.json({ error: "Missing file or week_start" }, { status: 400 });
   }
 
-  // Validate week_start is a Monday
   const weekDate = new Date(weekStart);
   if (isNaN(weekDate.getTime())) {
     return NextResponse.json({ error: "Invalid week_start date" }, { status: 400 });
   }
 
-  // Parse CSV
+  // ── Parse Wet & Dry CSV ──────────────────────────────────────────────────
   const csvText = await file.text();
   const rows = parseEposCsv(csvText);
 
   const dryRow = rows.find((r) => r.name.toLowerCase() === "dry");
   const wetRow = rows.find((r) => r.name.toLowerCase() === "wet");
-  const totalRow = rows.find((r) => r.name.toLowerCase().startsWith("total"));
 
-  if (!dryRow || !wetRow || !totalRow) {
+  if (!dryRow || !wetRow) {
     return NextResponse.json({
-      error: "CSV format not recognised — expected Dry, Wet and Total rows",
+      error: "Wet & Dry CSV format not recognised — expected Dry and Wet rows",
     }, { status: 400 });
   }
 
-  // Look up Xero GL total for bar+restaurant revenue for this week
+  const wetSales = wetRow.salesExcVat;
+  const drySales = dryRow.salesExcVat;
+
+  // ── Parse Misc CSV (if provided) ─────────────────────────────────────────
+  let miscSales = 0;
+  let miscQty = 0;
+  let miscProvided = false;
+
+  if (miscFile) {
+    const miscText = await miscFile.text();
+    const parsed = parseMiscCsv(miscText);
+    miscSales = parsed.total;
+    miscQty = parsed.qty;
+    miscProvided = true;
+  }
+
+  // ── Totals ───────────────────────────────────────────────────────────────
+  const barTotal = wetSales + miscSales;       // Bar = Wet + Misc
+  const eposGrandTotal = barTotal + drySales;  // Total = Bar + Dry
+
+  // ── Xero lookup ──────────────────────────────────────────────────────────
   const { data: xeroRows } = await supabaseAdmin
     .from("gl_transactions")
     .select("credit")
     .eq("client_id", clientId)
     .eq("txn_date", weekStart)
-    .eq("account_name", "Gales Bar and Restuarant Revenue"); // note: typo matches Xero
+    .eq("account_name", "Gales Bar and Restuarant Revenue"); // typo matches Xero
 
   const xeroTotal = (xeroRows || []).reduce((sum, r) => sum + (r.credit || 0), 0);
-  const eposTotal = totalRow.salesExcVat;
-  const difference = Math.abs(eposTotal - xeroTotal);
+  const difference = Math.abs(eposGrandTotal - xeroTotal);
   const isReconciled = difference <= RECONCILIATION_TOLERANCE;
 
-  // Store EPOS sales data
+  // ── Store EPOS sales ─────────────────────────────────────────────────────
   await supabaseAdmin.from("epos_sales").upsert({
     client_id: clientId,
     week_start: weekStart,
-    dry_sales_ex_vat: dryRow.salesExcVat,
-    wet_sales_ex_vat: wetRow.salesExcVat,
-    total_sales_ex_vat: eposTotal,
-    dry_qty: dryRow.qty,
+    wet_sales_ex_vat: wetSales,
+    dry_sales_ex_vat: drySales,
+    misc_sales_ex_vat: miscSales,
+    bar_total_ex_vat: barTotal,
+    total_sales_ex_vat: eposGrandTotal,
     wet_qty: wetRow.qty,
+    dry_qty: dryRow.qty,
+    misc_qty: miscQty,
     dry_discount: dryRow.discount,
     wet_discount: wetRow.discount,
     imported_at: new Date().toISOString(),
   });
 
-  // Store reconciliation result
+  // ── Store reconciliation result ──────────────────────────────────────────
   await supabaseAdmin.from("epos_reconciliation").upsert({
     client_id: clientId,
     week_start: weekStart,
-    epos_total: eposTotal,
+    epos_total: eposGrandTotal,
     xero_total: xeroTotal,
     difference: Math.round(difference * 100) / 100,
     tolerance: RECONCILIATION_TOLERANCE,
@@ -126,10 +165,13 @@ export async function POST(req: NextRequest) {
     success: true,
     week_start: weekStart,
     epos: {
-      dry: dryRow.salesExcVat,
-      wet: wetRow.salesExcVat,
-      total: eposTotal,
+      wet: wetSales,
+      dry: drySales,
+      misc: miscSales,
+      bar: barTotal,
+      total: eposGrandTotal,
     },
+    misc_provided: miscProvided,
     xero_total: Math.round(xeroTotal * 100) / 100,
     difference: Math.round(difference * 100) / 100,
     is_reconciled: isReconciled,
