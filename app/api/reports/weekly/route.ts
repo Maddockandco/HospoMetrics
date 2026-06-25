@@ -77,8 +77,23 @@ function computeStreams(
           // Revenue stays 0 — do NOT apply allocation rules
         }
       } else {
-        // Hotel and any other directly-mapped streams — show from Xero
-        result[streamId].revenue += amount;
+        // Bar and Restaurant mapped directly — still block unless EPOS reconciled
+        const isBarStream = barStream && streamId === barStream.id;
+        const isRestaurantStream = restaurantStream && streamId === restaurantStream.id;
+
+        if (isBarStream || isRestaurantStream) {
+          if (eposSplit?.is_reconciled) {
+            // Only add if not already added via shared stream path
+            // Direct mappings use EPOS actuals — skip Xero figure, EPOS split already applied above
+          } else {
+            // Block revenue, flag as pending
+            result[streamId].epos_pending = true;
+            // Revenue stays 0
+          }
+        } else {
+          // Hotel and any other directly-mapped streams — show from Xero
+          result[streamId].revenue += amount;
+        }
       }
     } else if (costType === "cogs") {
       if (
