@@ -1,6 +1,9 @@
 "use client";
 
+// 📁 app/dashboard/page.tsx
+
 import { useState, useEffect, useCallback } from "react";
+import DailyCashUp from "@/components/DailyCashUp";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface StreamData {
@@ -32,7 +35,7 @@ interface WeeklyReport {
 }
 
 const STREAM_COLORS: Record<string, string> = { Bar: "#e8a838", Restaurant: "#e07b4a", Hotel: "#5b8fa8" };
-const NAV = ["Weekly", "Monthly", "Trends", "Alerts"] as const;
+const NAV = ["Weekly", "Monthly", "Trends", "Alerts", "Cash Up"] as const;
 type NavItem = typeof NAV[number];
 
 const TOOLTIPS: Record<string, string> = {
@@ -378,7 +381,6 @@ function TrendsView({ report }: { report: WeeklyReport }) {
         })}
       </div>
 
-      {/* YoY comparison banner */}
       {report.comparisons.yoy.has_data && (
         <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: "16px 24px" }}>
           <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>
@@ -453,11 +455,8 @@ function TrendsView({ report }: { report: WeeklyReport }) {
 // ── Alerts View ───────────────────────────────────────────────────────────────
 function AlertsView({ report }: { report: WeeklyReport }) {
   const unmapped = report.unmapped_accounts || [];
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
-      {/* Unmapped accounts — shown first as highest priority */}
       {unmapped.length > 0 && (
         <div style={{ background: "#141824", border: "1px solid #e05555", borderRadius: 12, padding: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -476,9 +475,7 @@ function AlertsView({ report }: { report: WeeklyReport }) {
                     <div style={{ fontSize: 11, color: "#6b7a99" }}>Section: {acc.section}</div>
                     <div style={{ fontSize: 11, color: "#6b7a99" }}>First seen: {new Date(acc.first_seen_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</div>
                   </div>
-                  <div style={{ background: "#2e1a1a", color: "#e05555", borderRadius: 6, padding: "3px 8px", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>
-                    Not mapped
-                  </div>
+                  <div style={{ background: "#2e1a1a", color: "#e05555", borderRadius: 6, padding: "3px 8px", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>Not mapped</div>
                 </div>
               </div>
             ))}
@@ -489,7 +486,6 @@ function AlertsView({ report }: { report: WeeklyReport }) {
         </div>
       )}
 
-      {/* Spend spikes */}
       <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: 24 }}>
         <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}><TipLabel label="Spend Spikes" tipKey="spike" /></div>
         <div style={{ fontSize: 11, color: "#4a5a7a", marginBottom: 18 }}>Cost lines more than 25% above their 4-week average</div>
@@ -597,7 +593,6 @@ function MonthlyView({ report }: { report: any }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Data quality notice */}
       {report.data_quality.is_monthly_lump && (
         <Tooltip text={MONTHLY_TIPS.monthly_lump}>
           <div style={{ background: "#1a1e2e", border: "1px solid #3d4a63", borderRadius: 8, padding: "10px 16px", fontSize: 12, color: "#8892a8", display: "flex", alignItems: "center", gap: 8, cursor: "help", width: "100%" }}>
@@ -608,7 +603,6 @@ function MonthlyView({ report }: { report: any }) {
         </Tooltip>
       )}
 
-      {/* Monthly totals strip */}
       <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: "18px 24px", display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12 }}>
         {[
           { label: "Revenue", value: fmt(report.totals.revenue), color: "#f0f4ff", tip: MONTHLY_TIPS.revenue },
@@ -628,7 +622,6 @@ function MonthlyView({ report }: { report: any }) {
         ))}
       </div>
 
-      {/* Stream cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
         {report.streams.map((s: any) => {
           const color = STREAM_COLORS[s.stream] || "#888";
@@ -636,7 +629,7 @@ function MonthlyView({ report }: { report: any }) {
             <div key={s.stream} style={{ background: "#141824", border: "1px solid #252d3d", borderTop: `3px solid ${color}`, borderRadius: 12, padding: 20 }}>
               <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
                 {s.stream} {s.is_estimated && (
-                  <Tooltip text="This stream's figures include estimated splits — bar/restaurant revenue is divided using configured percentages rather than EPOS actuals.">
+                  <Tooltip text="This stream's figures include estimated splits.">
                     <span style={{ background: "#2a2f42", color: "#8892a8", fontSize: 9, padding: "1px 5px", borderRadius: 3, marginLeft: 4, cursor: "help" }}>est.</span>
                   </Tooltip>
                 )}
@@ -677,7 +670,6 @@ function MonthlyView({ report }: { report: any }) {
         })}
       </div>
 
-      {/* YoY comparison */}
       {report.yoy.has_data && (
         <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: 24 }}>
           <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 18 }}>
@@ -703,7 +695,6 @@ function MonthlyView({ report }: { report: any }) {
         </div>
       )}
 
-      {/* Seasonal revenue chart */}
       <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: 24 }}>
         <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
           <Tooltip text={MONTHLY_TIPS.seasonal_trend}>
@@ -721,14 +712,9 @@ function MonthlyView({ report }: { report: any }) {
               <div style={{ fontSize: 10, color: row.month === report.month ? "#f0f4ff" : "#6b7a99", minWidth: 48, fontWeight: row.month === report.month ? 700 : 400 }}>
                 {formatMonth(row.month)}
               </div>
-              <Tooltip text={`${formatMonth(row.month)}: ${fmt(row.revenue)} revenue, ${row.gross_margin_pct.toFixed(1)}% gross margin${row.is_monthly_lump ? " — monthly lump entry (accurate total, no weekly breakdown)" : " — weekly actuals"}`}>
+              <Tooltip text={`${formatMonth(row.month)}: ${fmt(row.revenue)} revenue, ${row.gross_margin_pct.toFixed(1)}% gross margin${row.is_monthly_lump ? " — monthly lump entry" : " — weekly actuals"}`}>
                 <div style={{ flex: 1, cursor: "help" }}>
-                  <Bar
-                    value={row.revenue}
-                    max={maxRevenue}
-                    color={row.month === report.month ? "#e8a838" : row.is_monthly_lump ? "#2a3048" : "#3d5a7a"}
-                    height={18}
-                  />
+                  <Bar value={row.revenue} max={maxRevenue} color={row.month === report.month ? "#e8a838" : row.is_monthly_lump ? "#2a3048" : "#3d5a7a"} height={18} />
                 </div>
               </Tooltip>
               <div style={{ fontSize: 11, color: row.month === report.month ? "#f0f4ff" : "#6b7a99", minWidth: 70, textAlign: "right" }}>{fmt(row.revenue)}</div>
@@ -740,7 +726,6 @@ function MonthlyView({ report }: { report: any }) {
         </div>
       </div>
 
-      {/* Opex breakdown */}
       {report.opex.length > 0 && (
         <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: 24 }}>
           <div style={{ fontSize: 10, color: "#6b7a99", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
@@ -749,7 +734,7 @@ function MonthlyView({ report }: { report: any }) {
           <div style={{ fontSize: 11, color: "#4a5a7a", marginBottom: 16 }}>Monthly total — shared equally across Bar, Restaurant and Hotel</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {report.opex.map((line: any) => (
-              <Tooltip key={line.name} text={`${line.name}: ${fmt(line.amount)} this month — ${((line.amount / report.opex.reduce((s: number, l: any) => s + l.amount, 0)) * 100).toFixed(1)}% of total operating expenses`}>
+              <Tooltip key={line.name} text={`${line.name}: ${fmt(line.amount)} this month`}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", cursor: "help" }}>
                   <div style={{ flex: 1, fontSize: 12, color: "#8892a8" }}>{line.name}</div>
                   <div style={{ width: 200 }}><Bar value={line.amount} max={Math.max(...report.opex.map((o: any) => o.amount))} color="#4a5a7a" height={5} /></div>
@@ -767,7 +752,6 @@ function MonthlyView({ report }: { report: any }) {
     </div>
   );
 }
-
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 export default function DashboardPage() {
@@ -866,7 +850,7 @@ export default function DashboardPage() {
             <div style={{ fontSize: 9, color: "#4a5a7a", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Reports</div>
             {NAV.map((item) => (
               <button key={item} onClick={() => setActiveNav(item)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 12px", background: activeNav === item ? "#1e2535" : "transparent", border: "none", borderRadius: 8, color: activeNav === item ? "#f0f4ff" : "#6b7a99", fontSize: 13, fontWeight: activeNav === item ? 600 : 400, cursor: "pointer", marginBottom: 2, textAlign: "left" }}>
-                {item === "Weekly" ? "📊" : item === "Monthly" ? "📅" : item === "Trends" ? "📈" : "🔔"} {item}
+                {item === "Weekly" ? "📊" : item === "Monthly" ? "📅" : item === "Trends" ? "📈" : item === "Cash Up" ? "💵" : "🔔"} {item}
                 {item === "Alerts" && report && (report.spikes.length > 0 || report.unmapped_accounts?.length > 0) && (
                   <span style={{ marginLeft: "auto", background: report.unmapped_accounts?.length > 0 ? "#e05555" : "#e8a838", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10 }}>
                     {(report.spikes.length || 0) + (report.unmapped_accounts?.length || 0)}
@@ -880,6 +864,9 @@ export default function DashboardPage() {
             <div style={{ fontSize: 9, color: "#4a5a7a", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Data</div>
             <a href="/epos" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 12px", background: "transparent", borderRadius: 8, color: "#6b7a99", fontSize: 13, textDecoration: "none", marginBottom: 2 }}>
               📤 EPOS Import
+            </a>
+            <a href="/cashup" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 12px", background: "transparent", borderRadius: 8, color: "#6b7a99", fontSize: 13, textDecoration: "none", marginBottom: 2 }}>
+              💵 Staff Cash Up
             </a>
           </div>
 
@@ -895,8 +882,8 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Week picker — hidden on Monthly tab */}
-          {activeNav !== "Monthly" && (
+          {/* Week picker — hidden on Monthly and Cash Up tabs */}
+          {activeNav !== "Monthly" && activeNav !== "Cash Up" && (
             <div style={{ padding: "0 16px", borderTop: "1px solid #1e2535", paddingTop: 20 }}>
               <div style={{ fontSize: 9, color: "#4a5a7a", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Week</div>
               <div style={{ fontSize: 11, color: "#f0f4ff", marginBottom: 10, lineHeight: 1.4 }}>{formatWeekLabel(selectedWeek)}</div>
@@ -933,20 +920,31 @@ export default function DashboardPage() {
             <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em" }}>
               {activeNav === "Monthly"
                 ? new Date(selectedMonth + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" })
+                : activeNav === "Cash Up"
+                ? "Nightly Till Reconciliations"
                 : showRolling && activeNav === "Weekly"
                 ? `4-week rolling average ending ${formatWeekLabel(selectedWeek).split("–")[1]?.trim()}`
                 : formatWeekLabel(selectedWeek)}
             </div>
           </div>
-          {loading && <div style={{ textAlign: "center", padding: 80, color: "#6b7a99" }}>Loading…</div>}
-          {error && <div style={{ background: "#2e1a1a", border: "1px solid #e05555", borderRadius: 12, padding: 20, color: "#e05555" }}>{error}</div>}
-          {report && !loading && (
+
+          {/* Cash Up tab renders independently — no weekly report needed */}
+          {activeNav === "Cash Up" && <DailyCashUp />}
+
+          {/* All other tabs need the weekly report */}
+          {activeNav !== "Cash Up" && (
             <>
-              {activeNav === "Weekly" && <WeeklyView report={report} showRolling={showRolling} />}
-              {activeNav === "Monthly" && monthlyReport && <MonthlyView report={monthlyReport} />}
-              {activeNav === "Monthly" && monthlyLoading && <div style={{ textAlign: "center", padding: 80, color: "#6b7a99" }}>Loading monthly report…</div>}
-              {activeNav === "Trends" && <TrendsView report={report} />}
-              {activeNav === "Alerts" && <AlertsView report={report} />}
+              {loading && <div style={{ textAlign: "center", padding: 80, color: "#6b7a99" }}>Loading…</div>}
+              {error && <div style={{ background: "#2e1a1a", border: "1px solid #e05555", borderRadius: 12, padding: 20, color: "#e05555" }}>{error}</div>}
+              {report && !loading && (
+                <>
+                  {activeNav === "Weekly" && <WeeklyView report={report} showRolling={showRolling} />}
+                  {activeNav === "Monthly" && monthlyReport && <MonthlyView report={monthlyReport} />}
+                  {activeNav === "Monthly" && monthlyLoading && <div style={{ textAlign: "center", padding: 80, color: "#6b7a99" }}>Loading monthly report…</div>}
+                  {activeNav === "Trends" && <TrendsView report={report} />}
+                  {activeNav === "Alerts" && <AlertsView report={report} />}
+                </>
+              )}
             </>
           )}
         </div>
