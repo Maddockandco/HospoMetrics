@@ -48,7 +48,7 @@ export default function EposUploadPage() {
       setter({ file: dropped, dragging: false });
     } else {
       setError("Please drop a CSV file");
-      setter((prev: FileDrop) => ({ ...prev, dragging: false }));
+      setter({ file: null, dragging: false });
     }
   }
 
