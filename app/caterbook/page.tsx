@@ -46,7 +46,7 @@ export default function CaterbookUploadPage() {
       setter({ file: dropped, dragging: false });
     } else {
       setError(`Please drop a ${accept} file`);
-      setter((prev: FileDrop) => ({ ...prev, dragging: false }));
+      setter({ file: null, dragging: false });
     }
   }
 
