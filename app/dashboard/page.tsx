@@ -219,11 +219,7 @@ function WeeklyView({ report, showRolling }: { report: WeeklyReport; showRolling
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {report.is_estimated && (
-        <div style={{ background: "#1e2118", border: "1px solid #3d4a2a", borderRadius: 8, padding: "10px 16px", fontSize: 12, color: "#8aa86a" }}>
-          ⚠ Stream splits are estimated — bar/restaurant revenue uses configured percentages, not EPOS actuals.
-        </div>
-      )}
+
 
       {/* Comparisons strip */}
       <div style={{ background: "#141824", border: "1px solid #252d3d", borderRadius: 12, padding: "14px 20px", display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap" }}>
