@@ -121,12 +121,13 @@ export async function POST(req: NextRequest) {
   const eposGrandTotal = barTotal + drySales;  // Total = Bar + Dry
 
   // ── Xero lookup ──────────────────────────────────────────────────────────
+  // Sum Bar + Restaurant revenue accounts — Hotel is handled separately in Caterbook import
   const { data: xeroRows } = await supabaseAdmin
     .from("gl_transactions")
     .select("credit")
     .eq("client_id", clientId)
     .eq("txn_date", weekStart)
-    .eq("account_name", "Gales Bar and Restuarant Revenue"); // typo matches Xero
+    .in("account_name", ["Bar revenue(WetStock)", "Restaurant Sales(DryStock)"]);
 
   const xeroTotal = (xeroRows || []).reduce((sum, r) => sum + (r.credit || 0), 0);
   const difference = Math.abs(eposGrandTotal - xeroTotal);
