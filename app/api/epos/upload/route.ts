@@ -34,9 +34,9 @@ function parseEposCsv(csvText: string): EposRow[] {
     return {
       name: cols[0]?.trim() || "",
       qty: parseInt(cols[1] || "0"),
-      salesExcVat: parseFloat(cols[2] || "0"),
+      salesExcVat: parseFloat(cols[2] || "0"),   // kept for reference
       vatTotal: parseFloat(cols[3] || "0"),
-      totalPrice: parseFloat(cols[4] || "0"),
+      totalPrice: parseFloat(cols[4] || "0"),     // gross inc VAT — used for calculations
       discount: parseFloat(cols[7] || "0"),
     };
   });
@@ -55,11 +55,12 @@ function parseMiscCsv(csvText: string): { total: number; qty: number } {
     const cols = line.split(",");
     const name = cols[0]?.trim().toLowerCase() || "";
     if (name.startsWith("total")) continue; // skip total row
-    total += parseFloat(cols[2] || "0"); // SalesExcVAT
+    total += parseFloat(cols[4] || "0"); // Gross inc VAT (col 4 = Sales)
     qty += parseInt(cols[1] || "0");
   }
 
-  return { total: Math.round(total * 100) / 100, qty };
+  const exVat = Math.round((total / 1.2) * 100) / 100;
+  return { total: exVat, qty };
 }
 
 export async function POST(req: NextRequest) {
@@ -100,8 +101,11 @@ export async function POST(req: NextRequest) {
     }, { status: 400 });
   }
 
-  const wetSales = wetRow.salesExcVat;
-  const drySales = dryRow.salesExcVat;
+  // Use gross figure ÷ 1.2 to strip VAT — matches how Xero journals are entered
+  // (EPOS VAT codes were historically incorrect so SalesExcVAT is unreliable)
+  const VAT_DIVISOR = 1.2;
+  const wetSales   = Math.round((wetRow.totalPrice / VAT_DIVISOR) * 100) / 100;
+  const drySales   = Math.round((dryRow.totalPrice / VAT_DIVISOR) * 100) / 100;
 
   // ── Parse Misc CSV (if provided) ─────────────────────────────────────────
   let miscSales = 0;
