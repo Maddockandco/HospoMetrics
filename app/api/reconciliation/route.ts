@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
         cash_variance:         cashVar,
         card_variance:         cardVar,
         total_variance:        totalVar,
-        venue_id:              venueId ?? null,
+        client_id:             venueId ?? null,
       })
       .select()
       .single()
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
     .limit(limit)
 
   if (venueId) {
-    query = query.eq('venue_id', venueId)
+    query = query.eq('client_id', venueId)
   }
 
   const { data, error } = await query
