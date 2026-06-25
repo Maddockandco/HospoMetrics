@@ -765,6 +765,7 @@ export default function DashboardPage() {
   const [selectedWeek, setSelectedWeek] = useState(defaultWeek);
 
   const [syncing, setSyncing] = useState(false);
+  const [fullSync, setFullSync] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [monthlyReport, setMonthlyReport] = useState<any | null>(null);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
@@ -788,7 +789,8 @@ export default function DashboardPage() {
   const handleSync = useCallback(async () => {
     setSyncing(true);
     try {
-      await fetch("/api/xero/sync");
+      const syncUrl = fullSync ? "/api/xero/sync?mode=full" : "/api/xero/sync?mode=quick";
+      await fetch(syncUrl);
       setLastSynced(new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }));
       fetchReport(selectedWeek);
     } catch (e) {
@@ -796,7 +798,7 @@ export default function DashboardPage() {
     } finally {
       setSyncing(false);
     }
-  }, [selectedWeek, fetchReport]);
+  }, [selectedWeek, fetchReport, fullSync]);
 
   const fetchMonthly = useCallback(async (month: string) => {
     setMonthlyLoading(true);
@@ -830,13 +832,24 @@ export default function DashboardPage() {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {lastSynced && <span style={{ fontSize: 10, color: "#4a5a7a" }}>Last synced {lastSynced}</span>}
+            {/* Quick / Full toggle */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#1e2535", borderRadius: 6, padding: "3px 4px" }}>
+              <button
+                onClick={() => setFullSync(false)}
+                style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, border: "none", cursor: "pointer", background: !fullSync ? "#3d4a63" : "transparent", color: !fullSync ? "#f0f4ff" : "#6b7a99", fontWeight: !fullSync ? 600 : 400 }}
+              >Quick</button>
+              <button
+                onClick={() => setFullSync(true)}
+                style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, border: "none", cursor: "pointer", background: fullSync ? "#3d4a63" : "transparent", color: fullSync ? "#f0f4ff" : "#6b7a99", fontWeight: fullSync ? 600 : 400 }}
+              >Full</button>
+            </div>
             <button
               onClick={handleSync}
               disabled={syncing}
               style={{ fontSize: 11, color: syncing ? "#4a5a7a" : "#6b7a99", background: "none", border: "none", cursor: syncing ? "default" : "pointer", display: "flex", alignItems: "center", gap: 5 }}
             >
               <span style={{ display: "inline-block", animation: syncing ? "spin 1s linear infinite" : "none" }}>↻</span>
-              {syncing ? "Syncing…" : "Sync Xero"}
+              {syncing ? (fullSync ? "Full sync…" : "Quick sync…") : (fullSync ? "Full Sync" : "Quick Sync")}
             </button>
             <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
           </div>
